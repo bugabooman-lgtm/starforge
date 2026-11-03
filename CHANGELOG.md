@@ -6,6 +6,18 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.76.5
+- Saves, backups and updates share one title screen link.
+
+## 0.76.4
+- Saves, backups and updates can now be reached from the title screen, as well as the Log tab.
+
+## 0.76.3
+- Contact address added to the About screen.
+
+## 0.76.2
+- Changelog added to the title screen.
+
 ## 0.76.1
 - Updated manual.
 

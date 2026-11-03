@@ -38,6 +38,7 @@ canvas#chart{display:block;width:100%;height:100%;cursor:crosshair;touch-action:
 #title .tBtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:6px}
 #title .tBtns button{font-size:17px;padding:10px 28px;min-width:150px}
 #title .tLinks{font-size:13px;color:var(--dim)}
+body.toolsOpen #modal{z-index:70}
 #docPanel{position:fixed;inset:0;z-index:60;background:rgba(2,3,10,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 #docPanel .docBox{background:var(--panel);border:1px solid var(--cyan);box-shadow:0 12px 40px rgba(0,0,0,.6);width:min(760px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;gap:10px;padding:16px 18px}
 #docPanel .docTabs{flex-wrap:wrap}
@@ -184,7 +185,8 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
   <p class="tTag">Chart an endless galaxy. Meet its peoples. Find what the Vael left behind.</p>
   <div class="tSave" id="tSave"></div>
   <div class="tBtns"><button class="primary" id="tCapt">Captain</button><button id="tBuild">Builder</button></div>
-  <div class="tLinks"><button class="linkBtn" id="tAbout">About</button> · <button class="linkBtn" id="tManual">Manual</button></div>
+  <div class="tLinks"><button class="linkBtn" id="tAbout">About</button> · <button class="linkBtn" id="tManual">Manual</button> · <button class="linkBtn" id="tLog">Changelog</button></div>
+  <div class="tLinks" style="margin-top:6px"><button class="linkBtn" id="tSaves">Saves, Backups &amp; Updates</button><span id="tUpdNote"></span></div>
 </div></div>
 <div class="app">
   <div class="map">
@@ -196,7 +198,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <div id="enc" class="captainOnly" hidden role="dialog" aria-live="polite"></div>
     <div id="docPanel" hidden></div>
     <div class="hud">
-      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.76.1</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
+      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.76.5</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
       <div class="seg" role="group" aria-label="Mode"><button id="gmBuild" class="on">Builder</button><button id="gmCapt">Captain</button></div>
       <button id="modeSelect" class="on builderOnly" title="Click a star to inspect it">Select</button>
       <button id="modePlace" class="builderOnly" title="Click empty space to place a new system">Place system</button>
@@ -253,7 +255,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <section class="builderOnly" id="alienEdit"></section>
 
     <section data-ctab="log">
-      <h2>Save &amp; share</h2>
+      <div id="saveTools"><h2>Save &amp; share</h2>
       <div class="row">
         <button id="btnSave">Save</button>
         <button id="btnExport">Export</button>
@@ -262,7 +264,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
       <p class="hint" id="saveNote">Saves stay in this browser, and clearing browser data erases them. The automatic backup below keeps a copy somewhere safer.</p>
       <div id="backupList"></div>
       <div id="safeBackup"></div>
-      <div id="updBox"></div>
+      <div id="updBox"></div></div>
     </section>
 
     <section class="builderOnly">
@@ -4618,7 +4620,7 @@ function ionHtml(){const sh=ship();if(!G.vparts||!G.vparts.length)return "";
 window.addEventListener("keydown",e=>{if(gameMode!=="captain"||!G.ship||typing(e)||!$("modal").hidden||land||(port&&port.open))return;
   if(e.key==="1"){e.preventDefault();toggleShields();if(!enc)renderCaptain()}else if(e.key==="2"){e.preventDefault();toggleArm();if(!enc)renderCaptain()}else if(e.key==="3"){e.preventDefault();toggleIon();if(!enc)renderCaptain()}});
 
-const VERSION="0.76.1"; // bump with every change
+const VERSION="0.76.5"; // bump with every change
 
 // =====================================================================
 // ---------- AUTOMATIC BACKUPS THAT SURVIVE CLEARING THE BROWSER ----------
@@ -4721,8 +4723,13 @@ const ABOUT=[
 <h3>The story so far</h3>
 <p>Long before humans reached the stars, a people called the Vael spread across this part of the galaxy, and then vanished. Their ruins are everywhere, marked with the same glyph: a circle crossed by three lines. Nobody knows what happened to them.</p>
 <p>You are a new captain with a modest ship, a small crew, and a home starbase that pays for every new world you survey. Out there are peoples who will welcome you, peoples who will tax you, and peoples who will hunt you. And somewhere among the ruins is the beginning of a trail the Vael left behind, for whoever was curious enough to follow it.</p>
+<h3>Contact</h3>
+<p>Questions, bug reports or ideas: <a href="mailto:GadgetsAndGizmotos@gmail.com" target="_blank" rel="noopener" style="color:var(--cyan)">GadgetsAndGizmotos@gmail.com</a></p>
 <p class="hint">Version ${typeof VERSION!=="undefined"?VERSION:""}</p>`}
 ];
+// CHANGELOG:BEGIN (generated from CHANGELOG.md)
+const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
+// CHANGELOG:END
 const MANUAL=[
  {t:"Welcome",h:`<h3>Welcome aboard, Captain</h3>
 <p>You command a survey ship based at your home starbase. Your job is simple to say and hard to finish: go out, find worlds, and make a living doing it.</p>
@@ -4858,6 +4865,7 @@ const MANUAL=[
 <li><b>Backups:</b> the game keeps a few snapshots in the browser (every 10 game days, and before any import, restore or new galaxy). You can restore one from the Log tab.</li>
 <li><b>Automatic backup:</b> clearing your browser's data erases its saves, so the game also keeps a copy somewhere safer. Choose a backup file once and it's kept up to date (Chrome and Edge), or a backup file downloads every 10 game days (other browsers).</li>
 <li><b>Export</b> gives you your whole game as text to keep anywhere. <b>Import</b> or <b>Load a backup file</b> brings it back, in any browser.</li>
+<li>All of these are in the <b>Log</b> tab, and under <b>Saves, Backups &amp; Updates</b> on the title screen, which also checks for a newer version of the game.</li>
 </ul>`}
 ];
 function openDocPanel(pages,title,startIdx){
@@ -4904,7 +4912,7 @@ function takeCarriedSave(){const t=window.STARFORGE_CARRY;if(!t)return;let g=nul
   if(!localHas||(same&&carryDay>=localDay)){loadSave(g);done();toast("Updated! Your game came along");logMsg(`Updated to Starforge v${VERSION}. Your game was carried over.`);return}
   if(same&&carryDay<localDay){done();return}
   confirmBox(`This updated file carried a game with it (${saveSummary(g)}), but this browser already has a different one (${saveSummary(G)}). Load the carried game? Your current one is backed up first.`,()=>{backupNow("restore");loadSave(g);toast("Carried game loaded")});$("mLoad").textContent="Load it";done()}
-function renderUpdater(){const el=$("updBox");if(!el)return;
+function renderUpdater(){const el=$("updBox");if(!el)return;titleUpdNote();
   if(inViewer()){el.innerHTML=`<h2 style="margin-top:6px">Updates</h2><p class="hint">You're playing the online version (v${VERSION}). It's always the newest when you open it.</p>`;return}
   const base=updBase(),info=UPD.info;let msg="";
   if(UPD.state==="nohost")msg=`<span style="color:var(--amber)">No update address is set yet. Paste your game's web address below.</span>`;
@@ -4923,11 +4931,19 @@ function renderUpdater(){const el=$("updBox");if(!el)return;
 }
 
 
+// ---- saves, backups and updates on the title screen: the same controls as the Log tab, moved over while open
+function openTitleTools(focus){const el=$("docPanel"),tools=$("saveTools"),home=tools.parentNode;
+  el.innerHTML=`<div class="docBox" role="dialog" aria-label="Saves, backups and updates"><div class="row" style="justify-content:space-between;align-items:center"><h2>Saves, Backups &amp; Updates</h2><button class="sm" id="ttClose">Close</button></div><div class="docBody" id="ttBody"></div></div>`;
+  $("ttBody").appendChild(tools);document.body.classList.add("toolsOpen");renderBackups();renderSafeBackup();renderUpdater();el.hidden=false;
+  if(focus==="upd")setTimeout(()=>{$("updBox").scrollIntoView({block:"start"})},0);
+  $("ttClose").onclick=()=>{home.prepend(tools);document.body.classList.remove("toolsOpen");el.hidden=true;if(!$("title").hidden)showTitle()}}
+function titleUpdNote(){const n=$("tUpdNote");if(!n)return;n.innerHTML=typeof UPD!=="undefined"&&UPD.state==="available"&&UPD.info?` · <span style="color:var(--cyan)">v${esc(UPD.info.version)} available</span>`:""}
+
 // =====================================================================
 // ---------- TITLE SCREEN ----------
 // =====================================================================
 const title={raf:0,t:0,stars:null};
-function showTitle(){const el=$("title");el.hidden=false;$("tVer").textContent="Version "+VERSION;
+function showTitle(){const el=$("title");el.hidden=false;$("tVer").textContent="Version "+VERSION;titleUpdNote();
   const sh=G&&G.ship;$("tSave").textContent=sh?`${G.seedText?`Galaxy “${G.seedText}”`:"Your galaxy"} · Day ${sh.day||0} · ${sh.name}`:"No captain's game yet. Captain starts one.";
   $("tCapt").textContent=sh?"Continue as Captain":"Captain";
   const cv=$("titleCv");title.stars=null;cancelAnimationFrame(title.raf);let last=performance.now();
@@ -5208,7 +5224,8 @@ let startMode="build";try{startMode=localStorage.getItem(KEY+".mode")||"build"}c
 setGameMode(startMode==="captain"?"captain":"build");
 showTitle();
 $("tCapt").onclick=()=>leaveTitle("captain");$("tBuild").onclick=()=>leaveTitle("build");
-$("tAbout").onclick=()=>openDocPanel(ABOUT,"About Starforge");$("tManual").onclick=()=>openDocPanel(MANUAL,"Captain's manual");
+$("tAbout").onclick=()=>openDocPanel(ABOUT,"About Starforge");$("tManual").onclick=()=>openDocPanel(MANUAL,"Captain's manual");$("tLog").onclick=()=>openDocPanel(CHANGELOG,"Changelog");
+$("tSaves").onclick=()=>openTitleTools();
 $("btnTitle").onclick=()=>{if(enc||land||(port&&port.open)){toast("Finish what you're doing first");return}showTitle()};
 renderBackups();{const vt=$("verTag");if(vt)vt.textContent="v"+VERSION}
 renderSafeBackup();cloudInit();fileInit();renderUpdater();takeCarriedSave();
