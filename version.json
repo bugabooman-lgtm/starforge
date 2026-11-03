@@ -1,5 +1,5 @@
 {
-  "version": "0.74",
-  "notes": "About and Manual, automatic planet passes so every ruin can be reached, and this online updater.",
-  "file": "Starforge.html"
+ "version": "0.76.1",
+ "notes": "Updated manual. Includes everything from 0.76: title screen, visitable colonies, conversations, wanted goods, surrender and towing, and cantina tales.",
+ "file": "Starforge.html"
 }

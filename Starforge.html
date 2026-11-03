@@ -28,6 +28,16 @@ canvas#chart{display:block;width:100%;height:100%;cursor:crosshair;touch-action:
 .brand .ver{display:block;font-size:10px;letter-spacing:.12em;text-transform:none;color:var(--dim);font-weight:400;margin-top:2px}
 .linkBtn{background:none;border:0;padding:0;font:inherit;letter-spacing:inherit;color:var(--cyan);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .linkBtn:hover{color:var(--text)}
+#title{position:fixed;inset:0;z-index:35;background:#02030a;display:flex;align-items:center;justify-content:center;padding:16px}
+#titleCv{position:absolute;inset:0;width:100%;height:100%}
+#title .tBox{position:relative;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;max-width:520px}
+#title .tName{font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:var(--cyan);font-size:clamp(34px,8vw,64px);text-shadow:0 0 30px rgba(92,225,230,.35);padding-left:.32em}
+#title .tVer{color:var(--dim);font-size:12px;letter-spacing:.14em}
+#title .tTag{color:var(--text);opacity:.8;margin:0;font-size:15px}
+#title .tSave{color:var(--dim);font-size:13px;min-height:18px}
+#title .tBtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+#title .tBtns button{font-size:17px;padding:10px 28px;min-width:150px}
+#title .tLinks{font-size:13px;color:var(--dim)}
 #docPanel{position:fixed;inset:0;z-index:60;background:rgba(2,3,10,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 #docPanel .docBox{background:var(--panel);border:1px solid var(--cyan);box-shadow:0 12px 40px rgba(0,0,0,.6);width:min(760px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;gap:10px;padding:16px 18px}
 #docPanel .docTabs{flex-wrap:wrap}
@@ -169,6 +179,13 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
 </style>
 </head>
 <body>
+<div id="title" hidden><canvas id="titleCv" aria-hidden="true"></canvas><div class="tBox">
+  <div class="tName">Starforge</div><div class="tVer" id="tVer"></div>
+  <p class="tTag">Chart an endless galaxy. Meet its peoples. Find what the Vael left behind.</p>
+  <div class="tSave" id="tSave"></div>
+  <div class="tBtns"><button class="primary" id="tCapt">Captain</button><button id="tBuild">Builder</button></div>
+  <div class="tLinks"><button class="linkBtn" id="tAbout">About</button> · <button class="linkBtn" id="tManual">Manual</button></div>
+</div></div>
 <div class="app">
   <div class="map">
     <canvas id="chart" aria-label="Galaxy star chart"></canvas>
@@ -179,7 +196,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <div id="enc" class="captainOnly" hidden role="dialog" aria-live="polite"></div>
     <div id="docPanel" hidden></div>
     <div class="hud">
-      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.74</span> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
+      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.76.1</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
       <div class="seg" role="group" aria-label="Mode"><button id="gmBuild" class="on">Builder</button><button id="gmCapt">Captain</button></div>
       <button id="modeSelect" class="on builderOnly" title="Click a star to inspect it">Select</button>
       <button id="modePlace" class="builderOnly" title="Click empty space to place a new system">Place system</button>
@@ -709,7 +726,7 @@ function eff(k){ // effective skill, after injuries
 }
 const staffed=k=>!!worker(k);
 function priceMult(){return 1-eff("com")/400} // up to 25% off
-function fuelPerLy(){return .6*(1-ship().up.engine*.1)*(1-eff("nav")/200)*(ship().vaelDrive?.7:1)*(inUnknown()&&!ship().quietWard?1.4:1)}
+function fuelPerLy(){return .6*(1-ship().up.engine*.1)*(1-eff("nav")/200)*(ship().vaelDrive?.7:1)*(inUnknown()&&!ship().quietWard?1.4:1)*(towing()?1.3:1)}
 function fuelPrice(){const s=here();return Math.round((s&&s.home?6:9)*priceMult()*10)/10}
 function addRumor(m){const sh=ship();sh.rumors=sh.rumors||[];sh.rumors.unshift(`Day ${sh.day||0}: ${m}`);sh.rumors=sh.rumors.slice(0,40)}
 // turn system names and coordinates in a line of text into links to the star map
@@ -781,7 +798,7 @@ function arrive(s,d){
   if(s.alienBase&&!s.alien)revealBase(s);
   nebulaNotice(s);if(s.inNeb&&!s.nebSeenIn){s.nebSeenIn=true;if(s.nebCore)logMsg(`The pathfinder threads you through the green murk into the heart of the ${nebOf(s).name}. From in here you can see the stars outside, but nothing outside can see you.`)}
   if(s.deep){sh.fuel=0;logMsg(`Out of fuel! Drifting in deep space at (${fmt(s.x)}, ${fmt(-s.y)}). Use the radio to call for fuel or a tow.`);toast("Out of fuel. Drifting")}
-  const days=Math.max(1,Math.ceil(d/4));sh.day=(sh.day||0)+days;growColonies();depotTick(days);distressTick(days);crewTick(days);
+  const days=Math.max(1,Math.ceil(d/4));sh.day=(sh.day||0)+days;growColonies();depotTick(days);distressTick(days);crewTick(days);krillTick();
   gainXP("nav",d*.6);gainXP("eng",d*.3);
   if(shUp()&&!s.deep){const f=Math.round(sh.up.shields*d*.02*10)/10;sh.fuel=Math.max(0,Math.round((sh.fuel-f)*10)/10);if(f>=.5)logMsg(`Keeping shields up during the jump used ${f} fuel.`);dropShieldsIfDry()}
   // space hazard: longer jumps are riskier
@@ -806,7 +823,7 @@ function arrive(s,d){
   selected=s;view.x=s.x;view.y=s.y;changed();
 }
 function dockAt(s){
-  const sh=ship();if(sh.calls&&sh.calls.length){logMsg(`${sh.calls.length>1?sh.calls.length+" distress calls":"A distress call"} went unanswered. Starbase traffic control has taken over.`);sh.calls=[]}settleRoverStore();if(sh.armed||sh.shieldsUp||sh.ionArmed){sh.armed=false;sh.shieldsUp=false;sh.ionArmed=false;logMsg("Starbase rules: weapons on safe and shields down while docked.")}
+  const sh=ship();if(sh.prize)sellPrize();if(sh.calls&&sh.calls.length){logMsg(`${sh.calls.length>1?sh.calls.length+" distress calls":"A distress call"} went unanswered. Starbase traffic control has taken over.`);sh.calls=[]}settleRoverStore();if(sh.armed||sh.shieldsUp||sh.ionArmed){sh.armed=false;sh.shieldsUp=false;sh.ionArmed=false;logMsg("Starbase rules: weapons on safe and shields down while docked.")}
   if(sh.data>0){const pay=Math.round(sh.data);sh.credits+=pay;logMsg(`Docked at ${s.name}. Sold survey data for ${pay} credits.`);sh.data=0}
   else logMsg(`Docked at ${s.name} starbase.`);
   reviewReports();
@@ -893,11 +910,11 @@ const FRONTIER_ALIENS={
     hi:["The Pact recognizes your flag."],warn:["Unregistered vessel. Declare cargo and pay the levy."],toll:300},
   quarn:{name:"Quarn Ravagers",color:"#ff3b3b",base:-90,str:6,world:"Frozen",ship:"a frost-rimed hulk patched with stolen hull plates",
     hi:["Not worth the ammunition. Go."],warn:["Your ship. Our ship now."],toll:800},
-  myrr:{name:"Myrr",color:"#e8eeff",base:5,str:5,world:"Gas giant",ship:"something you can only see out of the corner of your eye",
+  myrr:{name:"Myrr",color:"#e8eeff",base:5,str:5,hidden:true,world:"Gas giant",ship:"something you can only see out of the corner of your eye",
     hi:["We were here before your star lit. We will be here after."],warn:["You are being observed. Stop."],toll:0}
 };
 const allDefs=()=>Object.assign({},ALIENS,FRONTIER_ALIENS,(G&&G.genAliens)||{});
-const def=k=>k==="quiet"?QUIET_DEF:ALIENS[k]||FRONTIER_ALIENS[k]||(G&&G.genAliens&&G.genAliens[k]);
+const def=k=>k==="krillian"?KRILL_DEF:k==="quiet"?QUIET_DEF:ALIENS[k]||FRONTIER_ALIENS[k]||(G&&G.genAliens&&G.genAliens[k]);
 
 // ---------- procedural species: the universe keeps inventing new ones ----------
 const SP_A=["Zh","Kr","Vel","Ny","Tor","Qu","Ash","Xi","Gor","Ul","Pyr","Sha","Ek","Mor","Iy","Brex","Cael","Dun","Fy","Hra","Jix","Oth","Rhu","Sk","Tz"];
@@ -947,7 +964,7 @@ function placeAlien(r,key,dmin,dmax){
   const sys=pick(r,cands);
   setHomeworld(r,sys,key);
   const a={key,att:d.base,met:false,known:false,radius:rint(r,30,48),home:sys.id};
-  G.aliens.push(a);makeAlienBases(a);return a;
+  G.aliens.push(a);makeAlienBases(a);if(typeof ensureAlienColonies==="function")ensureAlienColonies();return a;
 }
 function setHomeworld(r,sys,key){
   const d=def(key);sys.alien=key;
@@ -981,7 +998,7 @@ function territoryOf(sys){ // the civilization whose space this system is in, if
   for(const a of G.aliens||[]){const h=alienSys(a);if(!h)continue;const d=Math.hypot(h.x-sys.x,h.y-sys.y);if(d<=a.radius&&d<bd){bd=d;best=a}}
   return best;
 }
-function meet(a){if(!a.met){a.met=true;logMsg(`First contact with the ${def(a.key).name}!`)}}
+function meet(a){if(!a.met){a.met=true;logMsg(`First contact with the ${def(a.key).name}!${G.heard&&G.heard[a.key]?" These must be the ones the travelers talked about.":""}`)}}
 function changeAtt(a,amt){const before=stanceOf(a.att);a.att=Math.max(-100,Math.min(100,a.att+amt));const after=stanceOf(a.att);
   if(before!==after)logMsg(`The ${def(a.key).name} now consider you ${after.toLowerCase()}.`)}
 
@@ -989,13 +1006,15 @@ function changeAtt(a,amt){const before=stanceOf(a.att);a.att=Math.max(-100,Math.
 let enc=null;
 function maybeEncounter(sys){
   if(sys.unknown)return quietEncounter(sys);
+  if(maybeKrillianRaid(sys))return true;
   if(maybeEnterprise(sys))return true;
   const a=territoryOf(sys);
   if(a){
     const atHome=a.home===sys.id,hostile=stanceOf(a.att)==="Hostile";
     // dropping out of a jump between the stars: patrols rarely find you, but they might
     const chance=sys.deep?(hostile?.12:.05):atHome?1:sys.alienBase===a.key?.85:(hostile?.7:.45);
-    if(Math.random()<chance){startEncounter(a,atHome);if(sys.deep)encLine(`<b style="color:var(--amber)">They spotted your ship drifting in their space.</b>`),renderEnc();return true}
+    const mod=(krSmuggling()&&stanceOf(a.att)!=="Friendly"?.3:1)*(ship().krRaid&&ship().krRaid.key===a.key?.4:1);
+    if(Math.random()<chance*mod){startEncounter(a,atHome);if(sys.deep)encLine(`<b style="color:var(--amber)">They spotted your ship drifting in their space.</b>`),renderEnc();return true}
   }
   // raiders roam the deep frontier
   if(Math.hypot(sys.x,sys.y)>110&&Math.random()<(sys.deep?.04:.12)){
@@ -1010,7 +1029,7 @@ function startEncounter(a,atHome,roaming){
   const str=d.str+(atHome?2:0);
   const st=stanceOf(a.att);
   enc={a,atHome,str,hp:40+str*25,maxhp:40+str*25,atk:5+str*4,fighting:st==="Hostile",
-    lines:[], toll:st==="Wary"&&d.toll?Math.round(d.toll*(atHome?1.5:1)):0, done:false, hailed:false};
+    lines:[], toll:!krSmuggling()&&st==="Wary"&&d.toll?Math.round(d.toll*(atHome?1.5:1)):0, done:false, hailed:false};
   initTactical(enc);
   enc.reinf=G.ship?reinforceSource(a,here()):null;enc.reinfActive=st==="Hostile";
   if(enc.reinf&&enc.reinf.near)enc.lines.push(`<p class="hint">Their ${enc.reinf.kind} here is watching. ${st==="Hostile"?"Expect reinforcements if you fight.":"Start a fight and they'll call for help."}</p>`);
@@ -1065,12 +1084,12 @@ function tradeMoods(a){const st=stanceOf(a.att);return {buy:{Friendly:.9,Neutral
 function openTrade(){
   const a=enc.a,d=def(a.key),r=rng(Date.now());const m=tradeMoods(a),charm=1-eff("cha")/400,boost=1+eff("cha")/300;
   const goodsPool=Object.keys(MIN_PRICE).filter(()=>r()<.45).slice(0,3);
-  const wants=[...Object.keys(MIN_PRICE)].sort(()=>r()-.5).slice(0,2);
+  const W=wantsOf(a.key),wants=[...W.minerals,...Object.keys(MIN_PRICE).filter(x=>!W.minerals.includes(x)).sort(()=>r()-.5).slice(0,1)];
   enc.trade={
     fuel:{qty:rint(r,20,90),price:Math.round(10*m.buy*charm*10)/10},
     goods:goodsPool.map(k=>({m:k,t:rint(r,3,14),price:Math.round(MIN_PRICE[k]*1.3*m.buy*charm)})),
-    wants:wants.map(k=>({m:k,price:Math.round(MIN_PRICE[k]*1.4*m.sell*boost)})),
-    relicMult:(1.05+r()*.35)*m.sell*boost,done:0};
+    wants:wants.map(k=>({m:k,price:Math.round(MIN_PRICE[k]*1.4*m.sell*boost*(W.minerals.includes(k)?1.3:1)),wanted:W.minerals.includes(k)})),
+    relicMult:(1.05+r()*.35)*m.sell*boost*(W.relics?1.35:1),done:0};
   {const k=specialtyOf(a.key);if(k&&ship().up[k]<6&&l6Have(k)<L6_NEED&&r()<({Friendly:.85,Neutral:.55,Wary:.3}[stanceOf(a.att)]||0))enc.trade.part={k,price:Math.round(1600*m.buy*charm/10)*10,left:rint(r,1,2)}}
   enc.trading=true;enc.offer=false;gainXP("cha",3);gainXP("com",3);
   encLine(`The ${esc(d.name)} open their cargo manifest.`);renderEnc();
@@ -1126,16 +1145,18 @@ function renderEnc(){
   const canTrade=!enc.fighting&&!enc.noTrade&&st!=="Hostile";
   const vidBtns=enc.videoReq&&!enc.video?`<button id="eVidYes" class="primary">Accept video</button><button id="eVidNo">Refuse video</button>`:
     !enc.video&&!enc.videoTried&&!enc.fighting?`<button id="eVid">Request video link</button>`:"";
-  if(enc.skirmish&&!enc.skirmish.side&&!enc.done)btns=skirmishButtons()+scanBtn()+postureBtns();
+  if(enc.surrender&&!enc.surrender.done)btns=surrenderBtns();
+  else if(enc.skirmish&&!enc.skirmish.side&&!enc.done)btns=skirmishButtons()+scanBtn()+postureBtns();
   else if(enc.trading)btns=`<button id="eTradeDone" class="primary">Done trading</button>`;
   else if(enc.done)btns=`${vidBtns}${canTrade&&(enc.trade||!enc.proposed)?`<button id="eTrade">${enc.trade?"Trade":enc.offer?"See their offer":"Propose trade"}</button>`:""}${enc.wreck&&!enc.wreck.taken?'<button id="eScav" class="primary">Scavenge wreckage</button>':""}<button id="eClose" ${enc.wreck&&!enc.wreck.taken?"":'class="primary"'}>${enc.wreck&&!enc.wreck.taken?"Leave it":"Continue"}</button>`;
-  else if(enc.fighting)btns=`${postureBtns()}${scanBtn()}${sh.up.weapons?`<button id="eFire" class="primary" ${hot()?"":"disabled title=\"Arm weapons first\""}>Fire lasers</button>`:""}${sh.up.torpedoes?`<button id="eTorp" class="primary" ${sh.torps&&hot()?"":"disabled"}>Launch torpedo (${sh.torps})</button>`:""}${ionReady()?`<button id="eIon" class="primary" style="border-color:#ffd36b;color:#ffd36b" ${ionHot()&&sh.fuel>=ION_FUEL?"":"disabled"} title="C or /">Fire ion cannon</button>`:""}${!armed()?`<button disabled>Unarmed</button>`:""}<button id="eFlee" ${sh.fuel<1?"disabled":""}>${sh.fuel<1?"No fuel to escape":"Try to escape"}</button><button id="eHail">Hail: offer surrender terms</button>${enc.videoReq&&!enc.video?`<button id="eVidYes">Accept video</button><button id="eVidNo">Refuse video</button>`:""}`;
+  else if(enc.fighting)btns=`${enc.a.key==="krillian"?krillPayBtn():""}${postureBtns()}${scanBtn()}${sh.up.weapons?`<button id="eFire" class="primary" ${hot()?"":"disabled title=\"Arm weapons first\""}>Fire lasers</button>`:""}${sh.up.torpedoes?`<button id="eTorp" class="primary" ${sh.torps&&hot()?"":"disabled"}>Launch torpedo (${sh.torps})</button>`:""}${ionReady()?`<button id="eIon" class="primary" style="border-color:#ffd36b;color:#ffd36b" ${ionHot()&&sh.fuel>=ION_FUEL?"":"disabled"} title="C or /">Fire ion cannon</button>`:""}${!armed()?`<button disabled>Unarmed</button>`:""}<button id="eFlee" ${sh.fuel<1?"disabled":""}>${sh.fuel<1?"No fuel to escape":"Try to escape"}</button><button id="eHail">Hail: offer surrender terms</button>${enc.videoReq&&!enc.video?`<button id="eVidYes">Accept video</button><button id="eVidNo">Refuse video</button>`:""}`;
   else{
     btns=`${vidBtns}<button id="eHail" ${enc.hailed?"disabled":""}>Hail</button>${scanBtn()}${postureBtns()}`;
     if(canTrade)btns+=enc.trade?`<button id="eTrade">Trade</button>`:enc.offer?`<button id="eTrade" class="primary">See their offer</button>`:`<button id="eTrade" ${enc.proposed?"disabled":""}>Propose trade</button>`;
     if(enc.toll)btns+=`<button id="ePay" ${sh.credits<enc.toll?"disabled":""}>Pay ${enc.toll} cr</button>`;
     btns+=`<button id="eLeave">${enc.toll?"Refuse and leave":"Go about your business"}</button>`;
     btns+=`<button id="eAttack" class="danger" ${hot()?"":"disabled title=\"Arm weapons first\""}>Attack</button>`;
+    if(enc.a.key==="krillian")btns+=krillPayBtn();
   }
   box.innerHTML=`<div class="who"><h2>Contact</h2><span class="stance" style="color:${stanceColor(st)}">${st}</span></div>
     <h3 style="color:${d.color}">${esc(d.name)}</h3>
@@ -1148,16 +1169,18 @@ function renderEnc(){
     ${enc.trading?"":postureLine()}${enc.trading||enc.wreck?"":scanReport()}${enc.done?wreckHtml():""}
     ${enc.lines.slice(enc.trading?-2:-6).join("")}
     ${enc.trading?renderTrade():""}
-    <div class="row">${btns}</div>`;
+    <div class="row">${btns}</div>${enc.done||enc.surrender&&!enc.surrender.done?"":askRow()}`;
   if(enc.trading)wireTrade(box);
+  box.querySelectorAll("[data-ask]").forEach(b=>b.onclick=()=>ask(b.dataset.ask));
   const vc=box.querySelector("#encVid");if(vc)drawAlienCall(vc,a);
   const on=(id,f)=>{const b=$(id);if(b)b.onclick=f};
   on("eVid",requestVideo);on("eVidYes",()=>answerVideo(true));on("eVidNo",()=>answerVideo(false));
   on("eClose",endEncounter);on("eHail",hail);on("eTrade",()=>{if(enc.trade){enc.trading=true;renderEnc()}else if(enc.offer)openTrade();else proposeTrade()});on("ePay",payToll);on("eLeave",leave);on("eFlee",flee);
-  on("eFire",()=>playerShoot("laser"));on("eScan",scanShip);on("eNextT",cycleTarget);on("eScav",scavenge);on("eArm",toggleArm);on("eShield",toggleShields);on("eSkV",()=>joinSkirmish("victim"));on("eSkA",()=>joinSkirmish("attacker"));on("eSkN",stayOut);on("eTorp",()=>playerShoot("torp"));on("eIon",()=>playerShoot("ion"));on("eIonArm",toggleIon);
+  on("eFire",()=>playerShoot("laser"));on("eScan",scanShip);on("eNextT",cycleTarget);on("eScav",scavenge);on("eArm",toggleArm);on("eBoard",boardShip);on("eSpare",spareShip);on("eFinish",finishShip);on("ePayoff",payKrillians);on("eShield",toggleShields);on("eSkV",()=>joinSkirmish("victim"));on("eSkA",()=>joinSkirmish("attacker"));on("eSkN",stayOut);on("eTorp",()=>playerShoot("torp"));on("eIon",()=>playerShoot("ion"));on("eIonArm",toggleIon);
   on("eAttack",()=>{enc.reinfActive=true;const was=stanceOf(a.att);changeAtt(a,was==="Hostile"?-5:-40);enc.fighting=true;enc.noTrade=true;enc.trading=false;if(enc.video){enc.video=false;encLine("The video link cuts out.")}encLine(`You open fire on the ${esc(d.name)}!${ldOf().shieldsUp?"":" Their shields are down. Your first shot hits clean."}`);playerShoot(sh.up.weapons?"laser":"torp");renderEnc()});
 }
 function hail(){
+  if(enc.a.key==="krillian"&&enc.fighting){enc.hailed=true;enc.payoff=enc.payoff||krillPayoff();encLine(`“Ah, a negotiator! ${enc.payoff} credits and we remember an urgent appointment elsewhere.”`);renderEnc();return}
   if(enc.a.key==="quiet"){enc.hailed=true;encLine("You hail on every frequency. There is no answer, only a silence that seems to listen.");if(enc.fighting)enemyFires();renderEnc();return}
   const a=enc.a,d=def(a.key),st=stanceOf(a.att),com=eff("com")+eff("cha")*.6+(enc.video?15:0);enc.hailed=true;gainXP("com",6);gainXP("cha",4);
   if(enc.fighting){
@@ -1214,6 +1237,7 @@ function fireRound(kind){
   if(enc.hp<=0){victory();return}
   checkReinforce();
   const nerve=enc.outpost?0:def(enc.a.key).flee??.4;
+  if(!T().station&&!enc.surrenderAsked&&!enc.outpost&&enc.a.key!=="quiet"&&enc.ships&&enemiesLeft().length===1&&enc.hp<enc.maxhp*.3&&Math.random()<.3+eff("cha")/400){offerSurrender();return}
   if(!T().station&&enc.hp<enc.maxhp*(.1+nerve*.45)&&Math.random()<.25+nerve*.5){const t=T();t.fleeing=true;encLine(`The ${esc(shipName(t))} ship breaks off and flees, trailing debris.`);changeAtt(enc.a,-3);gainXP("wpn",10);
     if(!nextTarget()){enc.done=true;enc.fighting=false;enc.videoTried=true;enc.videoReq=false;liftSiege();skirmishWon();if(enc.pool){enc.wreck=enc.pool;enc.pool=null;enc.noTrade=true}}renderEnc();renderCaptain();return}
   {const ld=ldOf(),cold=!ld.armed;const sDown=!ld.shieldsUp;goHot();
@@ -1351,14 +1375,14 @@ function renderContacts(){
   const met=(G.aliens||[]).filter(a=>a.met||a.known);
   $("contacts").innerHTML=`<h2>Known species · ${met.length} of ${(G.aliens||[]).length}</h2>
     ${met.length?met.map(a=>{const d=def(a.key),st=stanceOf(a.att),h=alienSys(a);
-      return `<div class="contact"><i style="background:${d.color}"></i><div>${esc(d.name)}<br><span class="hint">${a.known?"Homeworld "+esc(h.name):"Homeworld unknown"}${a.met?"":" · not yet met"}</span></div><span class="att" style="color:${stanceColor(st)}">${st} ${a.att>0?"+":""}${a.att}</span></div>${a.met&&specialtyOf(a.key)?`<p class="hint" style="margin:-4px 0 4px 22px;color:#ffd36b">Known for their ${UPG[specialtyOf(a.key)].name.toLowerCase()}: trade with them or salvage their wrecks for ${L6[specialtyOf(a.key)].part}s</p>`:""}${(()=>{const rel=met.filter(b=>b!==a&&G.relKnown&&G.relKnown[pairKey(a.key,b.key)]).map(b=>{const v=relBetween(a.key,b.key);return `<span style="color:${relColor(v)}">${relWord(v)} with the ${esc(def(b.key).name)}</span>`});return rel.length?`<p class="hint" style="margin:-4px 0 8px 22px">${rel.join(" · ")}</p>`:""})()}`}).join(""):
-      '<p class="hint">No contact yet. Alien space shows on the map once you meet its owners.</p>'}`;
+      return `<div class="contact"><i style="background:${d.color}"></i><div>${esc(d.name)}<br><span class="hint">${a.known?"Homeworld "+esc(h.name):"Homeworld unknown"}${a.met?"":" · not yet met"}</span></div><span class="att" style="color:${stanceColor(st)}">${st} ${a.att>0?"+":""}${a.att}</span></div>${a.wantsKnown?`<p class="hint" style="margin:-4px 0 4px 22px">Pays extra for ${esc(wantText(a.key))}</p>`:""}${a.met&&specialtyOf(a.key)?`<p class="hint" style="margin:-4px 0 4px 22px;color:#ffd36b">Known for their ${UPG[specialtyOf(a.key)].name.toLowerCase()}: trade with them or salvage their wrecks for ${L6[specialtyOf(a.key)].part}s</p>`:""}${(()=>{const rel=met.filter(b=>b!==a&&G.relKnown&&G.relKnown[pairKey(a.key,b.key)]).map(b=>{const v=relBetween(a.key,b.key);return `<span style="color:${relColor(v)}">${relWord(v)} with the ${esc(def(b.key).name)}</span>`});return rel.length?`<p class="hint" style="margin:-4px 0 8px 22px">${rel.join(" · ")}</p>`:""})()}`}).join(""):
+      '<p class="hint">No contact yet. Alien space shows on the map once you meet its owners.</p>'}${G.krill&&G.krill.met?`<div class="contact"><i style="background:${KRILL_DEF.color}"></i><div>Krillians<br><span class="hint">No homeworld anyone knows of · raiders, smugglers, always for hire</span></div><span class="att" style="color:${stanceColor(stanceOf(G.krill.att))}">${stanceOf(G.krill.att)}</span></div>`:""}`;
 }
 function renderAlienEdit(){
   const el=$("alienEdit");if(!el)return;
   el.innerHTML=`<h2>Alien species</h2>
     <p class="hint">Set how each species starts out toward the player, and how far their territory reaches. Use a system's panel to move a homeworld.</p>
-    ${(G.aliens||[]).map((a,i)=>{const d=def(a.key),h=alienSys(a);return `<div class="contact" style="grid-template-columns:12px 1fr auto auto"><i style="background:${d.color}"></i>
+    ${(G.aliens||[]).map((a,i)=>{const d=def(a.key),h=alienSys(a);if(d.hidden)return "";return `<div class="contact" style="grid-template-columns:12px 1fr auto auto"><i style="background:${d.color}"></i>
       <div>${esc(d.name)}<br><span class="hint">${h?esc(h.name):"no homeworld"}</span></div>
       <select data-disp="${i}" aria-label="Attitude of ${esc(d.name)}">${DISPOSITIONS.map(([n,v])=>`<option value="${v}" ${stanceOf(a.att)===stanceOf(v)?"selected":""}>${n}</option>`).join("")}</select>
       <input data-rad="${i}" type="number" min="15" max="90" value="${a.radius}" style="width:56px" aria-label="Territory radius"></div>`}).join("")}
@@ -1427,6 +1451,7 @@ function renderCaptain(){
         <span>Minerals</span> ${p.minerals.join(", ")}${p.ruins?' <b style="color:var(--cyan)">· Ruins</b>':""}<br>
         <span>Habitability</span> <b style="color:${habColor(habitability(p))};font-weight:400">${habitability(p)} ${habLabel(habitability(p))}</b>`:`<span>· unscanned</span>`}
         ${p.alienOutpost&&aoVisible(p)?`<div style="margin-top:3px"><span class="tag" style="color:${def(p.alienOutpost).color}">${esc(def(p.alienOutpost).name)} outpost</span></div>`:""}
+        ${p.alienColony&&colVisible(s,p)?`<div style="margin-top:3px"><span class="tag" style="color:${def(p.alienColony).color}">${esc(def(p.alienColony).name)} colony</span></div>`:""}
         ${p.native&&k?`<div style="margin-top:3px"><span class="tag" style="color:${def(p.native).color}">${esc(def(p.native).name)} homeworld</span></div>`:""}
         ${p.outpost||p.colony?`<div class="row" style="gap:4px;margin-top:3px">${p.outpost?'<span class="tag out">Outpost</span>':""}${p.colony?`<span class="tag home">${COLONY_STAGES[p.colony.stage]}</span>`:""}</div>`:""}
         ${btn?`<div class="row" style="gap:4px;margin-top:4px">${btn}</div>`:""}</div><div></div></div>`}).join("")||'<p class="hint">No planets.</p>'}</div>`;
@@ -1481,7 +1506,7 @@ function renderCaptain(){
     <div class="stat">Fuel ${bar("fuel",sh.fuel,tc,`${Math.round(sh.fuel*10)/10} / ${tc}`)}</div>
     <div class="stat">Hull ${bar("hull",sh.hull,hm,`${sh.hull} / ${hm}`)}</div>
     <div class="data">Day <b>${sh.day||0}</b> · Colonies founded <b>${colonyCount()}</b>${(sh.reports||[]).length?` · Reports to file <b>${sh.reports.length}</b>`:""}<br>Credits <b>${Math.round(sh.credits).toLocaleString()}</b> · Survey data <b>${Math.round(sh.data)}</b><br>
-    Range <b>${Math.floor(rangeLy())}</b> ly · <b>${(fuelPerLy()).toFixed(3)}</b> fuel per ly</div>
+    Range <b>${Math.floor(rangeLy())}</b> ly · <b>${(fuelPerLy()).toFixed(3)}</b> fuel per ly${sh.prize?`<br><span style="color:var(--amber)">Towing a captured ${esc(sh.prize.name)} · worth about ${sh.prize.value.toLocaleString()} cr at a starbase · jumps cost 30% more fuel</span>`:""}${krSmuggling()?`<br><span style="color:${KRILL_DEF.color}">Krillian smugglers are covering you until day ${sh.krSmuggle}</span>`:""}</div>
     ${stranded()?`<div class="row"><span class="hint" style="flex:1;color:var(--danger)">Not enough fuel to reach any star.</span><button id="cTow" class="danger">Call for a tow</button></div>`:""}
     ${depotsHtml()}
     <div class="data" style="font-size:16px;color:var(--dim)">${["engine","tank","cargo","sensors"].map(k=>`${UPG[k].name} <span class="pips">${pipStr(sh.up[k])}</span>`).join("<br>")}</div>`;
@@ -1853,7 +1878,7 @@ function fit(){view.x=0;view.y=0;view.scale=clampScale(Math.min(W,H)/(G.radius*2
 // ---------- SPACEPORT: a corridor you walk through ----------
 // =====================================================================
 var port={open:false,x:120,dir:0,facing:1,step:0,room:null,raf:0,target:null,npcs:[],t:0,keys:{}};
-const DOORS=[ // left to right along the corridor
+let DOORS=[ // left to right along the corridor
   {k:"dock",name:"Docking Bay",color:"#5ce1e6"},
   {k:"obs",name:"Observation window",color:"#9ad8ff",view:true},
   {k:"ops",name:"Operations",color:"#9db4ff"},
@@ -1865,12 +1890,13 @@ const DOORS=[ // left to right along the corridor
 ];
 const DOOR_GAP=260, DOOR_W=70, HALL_H=360;
 DOORS.forEach((d,i)=>d.x=170+i*DOOR_GAP);
-const HALL_LEN=170+(DOORS.length-1)*DOOR_GAP+200;
+let HALL_LEN=170+(DOORS.length-1)*DOOR_GAP+200;
 const pcv=document.getElementById("portCv"),pctx=pcv.getContext("2d");
 let PW=0,PH=0;
 
 function openPort(){
   if(!docked())return;
+  port.colony=null;DOORS=STARBASE_DOORS;HALL_LEN=STARBASE_HALL;port.lounge=null;
   port.open=true;port.room=null;port.x=DOORS[0].x;port.facing=1;port.target=null;
   $("port").hidden=false;$("room").hidden=true;$("portName").textContent=here().name+" spaceport";
   // passers-by: your crew's species and aliens you've met
@@ -1885,7 +1911,8 @@ function openPort(){
   const loop=now=>{const dt=Math.min(.05,(now-last)/1000);last=now;tickPort(dt);drawPort();if(port.open)port.raf=requestAnimationFrame(loop)};
   port.raf=requestAnimationFrame(loop);renderCaptain();
 }
-function closePort(){port.open=false;port.room=null;$("port").hidden=true;cancelAnimationFrame(port.raf);changed()}
+function closePort(){const wasColony=!!port.colony;port.open=false;port.room=null;$("port").hidden=true;cancelAnimationFrame(port.raf);
+  if(wasColony){logMsg(`Lifted off from ${port.colony.name}.`);port.colony=null;port.lounge=null;DOORS=STARBASE_DOORS;HALL_LEN=STARBASE_HALL}changed()}
 function speciesColor(sp){return {Human:"#ffd9b0",Kesh:"#9db4ff",Vorrn:"#ff9f5a",Lumari:"#7bea8c",Ossari:"#ffd36b",Synth:"#c8d0e0"}[sp]||"#d8e2f5"}
 function sizePort(){const r=pcv.getBoundingClientRect();PW=r.width;PH=r.height;const dpr=window.devicePixelRatio||1;pcv.width=PW*dpr;pcv.height=PH*dpr;pctx.setTransform(dpr,0,0,dpr,0,0)}
 window.addEventListener("resize",()=>{if(port.open)sizePort()});
@@ -1913,7 +1940,7 @@ function tickPort(dt){
 function enterDoor(d){
   if(!d)return;
   if(d.k==="dock"){closePort();return}
-  port.room=d.k;$("room").hidden=false;$("room").style.width=d.k==="obs"||d.k==="lounge"?"min(920px, calc(100% - 32px))":"";$("roomTitle").textContent=d.name;$("room").style.borderColor=d.color;$("roomTitle").style.color=d.color;
+  port.room=d.k;$("room").hidden=false;$("room").style.width=d.k==="obs"||d.k==="lounge"||d.k==="cantina"||d.k==="ctrade"?"min(920px, calc(100% - 32px))":"";$("roomTitle").textContent=d.name;$("room").style.borderColor=d.color;$("roomTitle").style.color=d.color;
   renderRoom();
 }
 function berthImage(){
@@ -1990,7 +2017,9 @@ function renderRoom(){
         <h2>Notices</h2><div class="log" style="max-height:none">${sh.log.slice(0,12).map(m=>`<div>${linkify(m)}</div>`).join("")}</div>
         <h2>Alien relations</h2>${known.length?known.map(a=>{const d=def(a.key),st=stanceOf(a.att);return `<div class="contact"><i style="background:${d.color}"></i><div>${esc(d.name)}</div><span class="att" style="color:${stanceColor(st)}">${st}</span></div>`}).join(""):'<p class="hint">No species on file yet.</p>'}
         <h2>Starbase network</h2><p class="hint">${G.systems.filter(x=>x.starbase).map(x=>esc(x.name)).join(" · ")}</p>`;break}
-    case "lounge":el.innerHTML=loungeHtml();wireLounge(el);break;
+    case "lounge":case "cantina":el.innerHTML=loungeHtml();wireLounge(el);break;
+    case "ctrade":el.innerHTML=tradePostHtml();wireTradePost(el);break;
+    case "chall":el.innerHTML=colonyHallHtml();break;
     case "obs":{
       el.innerHTML=`<canvas id="obsCv" style="width:100%;aspect-ratio:16/7;max-width:100%;display:block" aria-label="Your ship seen from the observation deck"></canvas>
         <p class="hint">The <b style="color:var(--text);font-weight:600">${esc(sh.name)}</b>, berthed at ${esc(s.name)} station. Hull ${sh.hull}/${hullMax(sh.up.armor)} · fuel ${Math.round(sh.fuel)}/${tankCap(sh.up.tank)}.</p>`;
@@ -2036,6 +2065,7 @@ function drawPort(){
     c.fillStyle="rgba(0,0,0,.18)";for(const y of [wallTop+40,wallTop+120])c.fillRect(x+6,y,52,1);
     c.fillStyle="rgba(255,255,255,.04)";for(const y of [wallTop+41,wallTop+121])c.fillRect(x+6,y,52,1);
   }
+  if(port.colony){c.fillStyle=port.colony.color+"14";c.fillRect(L,wallTop,R-L,FLOOR-wallTop)}
   // pipe run + cable tray
   const pipe=c.createLinearGradient(0,56,0,64);pipe.addColorStop(0,"#5a6a8c");pipe.addColorStop(.5,"#34405e");pipe.addColorStop(1,"#1a2236");
   c.fillStyle=pipe;c.fillRect(L,56,R-L,8);
@@ -2069,6 +2099,7 @@ function drawPort(){
       c.fillStyle="#8a94a8";c.beginPath();c.moveTo(sx,sy);c.lineTo(sx+18,sy-3);c.lineTo(sx+24,sy);c.lineTo(sx+18,sy+3);c.closePath();c.fill();
       c.fillStyle="rgba(150,200,255,.8)";c.fillRect(sx-5,sy-1,5,2);c.fillStyle=Math.sin(t*6)>0?"#ff4040":"#401010";c.fillRect(sx+22,sy-1,1.5,1.5);
     }
+    if(port.colony)drawColonyWindow(c,wx,wy,ww,wh,i,t);
     c.restore();
     // frame, mullions and a soft reflection on the glass
     c.strokeStyle="#4a5878";c.lineWidth=6;c.strokeRect(wx,wy,ww,wh);c.lineWidth=1;
@@ -2407,7 +2438,7 @@ function takeGroup(g,n){ // remove n tons of a group, cheapest minerals first
   for(const m of list){const t=Math.min(n,sh.cargo[m]);sh.cargo[m]-=t;n-=t;if(!sh.cargo[m])delete sh.cargo[m];if(!n)break}
 }
 function addCargo(m,n){const sh=ship();const room=cargoCap()-cargoUsed();const t=Math.max(0,Math.min(n,room));if(t)sh.cargo[m]=(sh.cargo[m]||0)+t;return t}
-function passDay(n){const sh=ship();sh.day=(sh.day||0)+n;growColonies();depotTick(n);distressTick(n);crewTick(n)}
+function passDay(n){const sh=ship();sh.day=(sh.day||0)+n;growColonies();depotTick(n);distressTick(n);crewTick(n);krillTick()}
 
 function regenSkim(p){const day=(G.ship&&G.ship.day)||0;if(!p.mined)return;p.minedDay??=day;const back=Math.floor((day-p.minedDay)/20);if(back>0){p.mined=Math.max(0,p.mined-back);p.minedDay=day}}
 function canMine(s,p){return !p.native&&!p.colony&&(p.mined||0)<MAX_MINES}
@@ -2822,8 +2853,9 @@ function renderSysCard(){
     acts=`${k?"":`<button class="primary" id="sScanP">Scan planet</button>`}
       ${gas?`<button id="sSkim" ${(p.mined||0)>=MAX_MINES?"disabled":""}>${(p.mined||0)>=MAX_MINES?"Skimmed out (refills in time)":"Skim for fuel"}</button>`:
         p.alienOutpost&&aoVisible(p)?`${alienOutpostDealHtml(s,i).startsWith("<button")?alienOutpostDealHtml(s,i):""}<button disabled>No landing</button><button class="danger" id="sAtkOut" ${hot()?"":'disabled title="Arm weapons first (Weapons tab)"'}>Attack outpost</button>`:
+        p.alienColony&&colVisible(s,p)?`${colonyButtons(s,i)}<button disabled title="The colony controls who lands">No rover landings</button>`:
         p.native&&k?`<button disabled>Landing forbidden</button>`:!k?"":
-        `<button class="${k?"primary":""}" id="sLand" ${sh.fuel<landFuel?"disabled":""}>Land · ${landFuel} fuel</button>`}
+        `<button class="${k&&!p.colony?"primary":""}" id="sLand" ${sh.fuel<landFuel?"disabled":""}>Land · ${landFuel} fuel</button>${p.colony?colonyButtons(s,i):""}`}
       ${k&&!p.colony&&!p.native&&!p.alienOutpost&&!s.alienBase&&!sysv.remote?(()=>{const o=depotOf(p);if(o)return `<button id="sDepot" ${o.siege||o.fuel<1||sh.fuel>=tankCap(sh.up.tank)-.5?"disabled":""}>Refuel from depot</button>`;
         const ok=sh.credits>=DEPOT_COST&&groupAmt("metal")>=DEPOT_METAL&&staffed("eng");return `<button id="sBuild" ${ok?"":"disabled"} title="${DEPOT_COST} credits and ${DEPOT_METAL} tons of metal">Build fuel depot</button>`})():""}
       ${k&&!p.colony&&!p.native&&!p.alienOutpost&&!s.home&&!s.unknown?(isReported(s,i)?'<span class="tag base">Reported</span>':`<button id="sRec">Recommend colony</button>`):""}
@@ -2832,6 +2864,7 @@ function renderSysCard(){
   el.innerHTML=`<div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3>${inOrbit?'<span class="tag home">In orbit</span>':""}</div>
     ${(()=>{const o=depotOf(p);if(!o)return k&&inOrbit&&!p.colony&&!p.native&&(p.alienOutpost||s.alienBase)?`<p class="hint">You can't build a depot here. The ${esc(def(p.alienOutpost||s.alienBase).name)} already have ${p.alienOutpost?"an outpost on this planet":"a starbase in this system"}.</p>`:k&&inOrbit&&!p.colony&&!p.native?`<p class="hint">A fuel depot here costs ${DEPOT_COST} cr + ${DEPOT_METAL} t metal and makes about ${depotRate(p)} fuel a day.${!staffed("eng")?" Needs an engineer on duty.":""}</p>`:"";
       return `<div class="item" style="border-color:${o.siege?"var(--danger)":"var(--green)"}"><div>Your fuel depot${o.siege?' <span class="tag" style="color:var(--danger)">Under attack</span>':""}<div class="d">${Math.round(o.fuel)} / ${o.cap} fuel stored · makes ${depotRate(p)} a day</div></div><div></div></div>`})()}
+    ${colonyHtml(s,i,inOrbit)}
     ${p.alienOutpost&&aoVisible(p)?`<div class="item" style="border-color:${def(p.alienOutpost).color}"><div>${esc(def(p.alienOutpost).name)} outpost<div class="d">Armed and watched. Outsiders can't land here.${inOrbit?" "+alienOutpostDealHtml(s,i).replace(/<[^>]+>/g,"").replace(/^Buy fuel.*/,"They'll sell you fuel."):""}</div></div><div></div></div>`:""}
     ${k?`<div class="data" style="font-size:17px">${p.type} · size <b>${p.size}</b>${p.native?` · <b style="color:${def(p.native).color}">${esc(def(p.native).name)} homeworld</b>`:""}</div>`:""}
     ${k?`<div class="data" style="font-size:17px">Atmosphere <b>${p.atmo}</b> · Life <b>${p.life}</b><br>Minerals <b>${p.minerals.join(", ")}</b>${p.ruins?' · <b style="color:var(--cyan)">Ruins detected</b>':""}<br>Habitability <b style="color:${habColor(hab)}">${hab} ${habLabel(hab)}</b>${p.colony?` · <span class="tag home">${COLONY_STAGES[p.colony.stage]}</span>`:""}</div>`
@@ -2850,7 +2883,7 @@ function renderSysCard(){
   on("sBuild",()=>buildDepot(s,i));
   on("sAoFuel",()=>alienBuyFuel(p.alienOutpost,alienDeal(p.alienOutpost,"outpost",s.id+"-"+i),"outpost"));
   on("sAtkOut",()=>{const d=def(p.alienOutpost);confirmBox(`Attack the ${d.name} outpost on ${p.name}? It will call for reinforcements, and the ${d.name} will never forget it.`,()=>attackOutpost(s,i));$("mLoad").textContent="Attack"});on("sDepot",()=>refuelFromDepot(p));
-  on("sLand",()=>landOn(s,i));
+  on("sLand",()=>landOn(s,i));on("sVisit",()=>visitColony(s,i));
 }
 const planetTex=new Map();
 function getPlanetTex(s,i){
@@ -3290,24 +3323,35 @@ const CREW_CHAT={
 const VISITOR_CHAT=["Your kind are louder than we expected. It's charming.","We have been watching your ship's progress. You travel far.","Strange place, this. The music is terrible.","We do not usually speak to outsiders. You seem different."];
 
 function loungeState(){
-  const s=here(),sh=ship(),key=s.id+":"+sh.visits;
+  const s=here(),sh=ship(),col=port.colony,key=(col?`col${col.s.id}-${col.i}:`:s.id+":")+sh.visits;
   if(port.lounge&&port.lounge.key===key)return port.lounge;
   const r=rng(hashStr(key)+11),pats=[];
-  const barSp=pick(r,["Human","Ossari","Vorrn"]);
-  pats.push({id:"bar",kind:"bartender",name:pick(r,["Mags","Orrin","Dree","Bex","Tully"]),sp:barSp,col:speciesColor(barSp),seed:Math.floor(r()*1e9)});
+  if(col&&col.alien){const d=def(col.key),look=CREW_LOOK[col.key]||"Alien";
+    pats.push({id:"bar",kind:"bartender",name:`${col.short} barkeep`,sp:look,col:d.color,seed:Math.floor(r()*1e9),aKey:col.key});
+    pats.push({id:"loc",kind:"visitor",aKey:col.key,name:`${col.short} local`,sp:look,col:d.color,seed:Math.floor(r()*1e9)})}
+  else{const barSp=pick(r,["Human","Ossari","Vorrn"]);
+    pats.push({id:"bar",kind:"bartender",name:pick(r,["Mags","Orrin","Dree","Bex","Tully"]),sp:barSp,col:speciesColor(barSp),seed:Math.floor(r()*1e9)})}
   const lsp=pick(r,["Human","Human","Kesh","Vorrn","Lumari"]);
-  pats.push({id:"loc",kind:"spacer",name:pick(r,FIRST),sp:lsp,col:speciesColor(lsp),seed:Math.floor(r()*1e9)});
-  const vis=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)!=="Hostile");
-  if(vis.length&&r()<.7){const a=pick(r,vis);pats.push({id:"vis",kind:"visitor",aKey:a.key,name:def(a.key).name.split(" ")[0]+" envoy",sp:CREW_LOOK[a.key]||"Alien",col:def(a.key).color,seed:hashStr(a.key)})}
+  pats.push({id:"sp1",kind:"spacer",name:pick(r,FIRST.filter(n=>!sh.crew.some(c=>c.name===n))),sp:lsp,col:speciesColor(lsp),seed:Math.floor(r()*1e9)});
+  if(typeof krillianPatron==="function"){const kp=krillianPatron(r,col);if(kp)pats.push(kp)}
+  const vis=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)!=="Hostile"&&(!col||a.key!==col.key));
+  if(vis.length&&r()<(col?.4:.7)){const a=pick(r,vis);pats.push({id:"vis",kind:"visitor",aKey:a.key,name:def(a.key).name.split(" ")[0]+" envoy",sp:CREW_LOOK[a.key]||"Alien",col:def(a.key).color,seed:hashStr(a.key)})}
   const offd=sh.crew.filter(c=>!c.captain);
   if(offd.length&&r()<.8){const c=pick(r,offd);pats.push({id:"crew",kind:"crew",crewId:c.id,name:c.name,sp:c.species,col:speciesColor(c.species),seed:c.id})}
-  port.lounge={key,pats,talked:{},drinks:0,lines:[`You step into the Starlight Lounge. Soft music, low light, and a view of the stars.`],round:false,dice:0};
+  const intro=col?(col.alien?`You step into the ${col.short} cantina at ${col.name}. The air smells strange, and every head turns your way.`:`You step into the ${col.stage>=2?"colonists' tavern":"mess hall"} on ${col.p.name}. Someone recognizes you and raises a cup.`):`You step into the Starlight Lounge. Soft music, low light, and a view of the stars.`;
+  port.lounge={key,pats,talked:{},drinks:0,lines:[intro],round:false,dice:0};
   return port.lounge;
 }
 function loungeSay(t){const L=port.lounge;L.lines.unshift(t);L.lines=L.lines.slice(0,6)}
 function talkTo(id){
   const L=port.lounge,p=L.pats.find(x=>x.id===id),sh=ship(),s=here();if(!p||L.talked[id])return;L.talked[id]=true;
-  if(p.kind==="bartender"){loungeSay(`${p.name}: “What'll it be? Buy a drink and I'll tell you what I hear.”`)}
+  if(p.kind==="bartender"){const kr=L.pats.some(x=>x.kind==="krillian");loungeSay(`${p.name}: “${kr&&Math.random()<.6?pick(Math.random,BAR_KRILL)+" Anyway. ":""}What'll it be? Buy a drink and I'll tell you what I hear.”`)}
+  else if(p.kind==="krillian"){const k=krillFoe();if(!k.met){k.met=true;logMsg("You met your first Krillian, in a cantina. Of course.")}
+    let said=k.stiffed?(k.stiffed--,pick(Math.random,KRILL_EXCUSE)):pick(Math.random,KRILL_SAYS);
+    if(!L.krJob&&Math.random()<.65){L.krJob={name:p.name,done:false};said+=" Also, I have work. Lucrative work. Mostly legal. Look below."}
+    loungeSay(`${p.name}: “${said}”`);gainXP("cha",2)}
+  else if(p.kind==="spacer"&&Math.random()<.2){loungeSay(`${p.name}: “${smallTalk()}”`)}
+  else if(p.kind==="spacer"&&Math.random()<.22&&(()=>{const t=frontierTale();if(t){loungeSay(`${p.name}: “${t}”`);return true}return false})()){}
   else if(p.kind==="spacer"){
     const r=Math.random();let said=pick(Math.random,SPACER_CHAT);
     // star charts for a nearby unsurveyed system
@@ -3326,6 +3370,8 @@ function talkTo(id){
   }else if(p.kind==="visitor"){
     const a=G.aliens.find(x=>x.key===p.aKey);changeAtt(a,3);
     let said=pick(Math.random,VISITOR_CHAT);
+    if(Math.random()<.15){loungeSay(`${p.name}: “${smallTalk()}”`);renderRoom();changed();return}
+    {const t=Math.random()<.2?frontierTale():null;if(t){loungeSay(`${p.name}: “${t}”`);renderRoom();changed();return}}
     const unknown=G.aliens.filter(x=>!x.known&&x!==a);
     {const pt=Math.random()<.2?tellAboutPart(`A ${def(a.key).name} envoy at ${s.name}`):null;if(pt){loungeSay(`${p.name}: “Our scouts found a piece of the old ones' weaponry in the ruins on ${pt}. We would not touch it. Perhaps you will.”`);gainXP("cha",3);renderRoom();changed();return}}
     const own=Math.random()<.45?tellAboutInstallation(`A ${def(a.key).name} envoy at ${s.name}`,a.key):null;
@@ -3369,7 +3415,7 @@ function playDice(bet){
 }
 function loungeHtml(){
   const L=loungeState(),sh=ship(),round=15+sh.crew.length*10;
-  const label={bartender:"Bartender",spacer:"Local spacer",visitor:"Visitor",crew:"Your crew, off duty"};
+  const label={bartender:"Bartender",spacer:"Traveler",visitor:"Visitor",crew:"Your crew, off duty",krillian:"Krillian"};
   return `<canvas id="loungeCv" style="width:100%;aspect-ratio:16/6;max-width:100%;display:block;border:1px solid var(--line)" aria-label="The Starlight Lounge"></canvas>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px">${L.pats.map(p=>`<div class="item" style="grid-template-columns:auto 1fr;gap:8px;align-items:center">
       <canvas data-lsp="${p.sp}" data-lcol="${p.col}" data-lseed="${p.seed}" style="width:38px;height:44px" aria-label="${esc(p.name)}"></canvas>
@@ -3382,6 +3428,7 @@ function loungeHtml(){
       ${L.chipOffer&&!L.chipBought?`<div class="item"><div>Old data chip<div class="d">A spacer's find, covered in Vael glyphs</div></div><button class="sm" id="lChip" ${sh.credits<150?"disabled":""}>150 cr</button></div>`:""}
       <div class="item"><div>Dice with the spacers<div class="d">Double or nothing · ${3-L.dice} games left tonight</div></div><div class="row" style="gap:4px"><button class="sm" data-dice="25" ${L.dice>=3||sh.credits<25?"disabled":""}>25</button><button class="sm" data-dice="100" ${L.dice>=3||sh.credits<100?"disabled":""}>100</button></div></div>
     </div>
+    ${krillJobHtml()}
     <p class="hint">Credits ${Math.round(sh.credits).toLocaleString()}</p>`;
 }
 function wireLounge(el){
@@ -3390,6 +3437,7 @@ function wireLounge(el){
   on("lDrink",buyDrink);on("lRound",buyRound);
   on("lChip",()=>{const sh=ship(),L=port.lounge;if(sh.credits<150)return;sh.credits-=150;L.chipBought=true;
     if(discoverFragment("chip"))loungeSay("Your science officer cracks the chip open. It's a Vael record.");else loungeSay("The chip is corrupted. Whatever was on it is gone.");renderRoom();changed()});
+  el.querySelectorAll("[data-kjob]").forEach(b=>b.onclick=()=>takeKrillJob(b.dataset.kjob));
   el.querySelectorAll("[data-dice]").forEach(b=>b.onclick=()=>playDice(+b.dataset.dice));
   el.querySelectorAll("canvas[data-lsp]").forEach(cv=>drawPortrait(cv,{sp:cv.dataset.lsp,col:cv.dataset.lcol,seed:+cv.dataset.lseed}));
   drawLounge($("loungeCv"));
@@ -3402,10 +3450,10 @@ function drawLounge(cv){
   // great curved window onto the stars
   const wx=W*.06,wy=H*.08,ww=W*.62,wh=H*.55;
   c.save();c.beginPath();c.moveTo(wx,wy+wh);c.lineTo(wx,wy+wh*.25);c.quadraticCurveTo(wx+ww/2,wy-wh*.15,wx+ww,wy+wh*.25);c.lineTo(wx+ww,wy+wh);c.closePath();c.clip();
-  c.fillStyle="#04040c";c.fillRect(wx,wy-20,ww,wh+20);
+  if(port.colony){drawColonyWindow(c,wx,wy-20,ww,wh+20,3,performance.now()/1000)}else{c.fillStyle="#04040c";c.fillRect(wx,wy-20,ww,wh+20);
   const sr=rng(s.id+77);for(let i=0;i<120;i++){c.fillStyle=`rgba(220,225,255,${.2+sr()*.7})`;c.fillRect(wx+sr()*ww,wy+sr()*wh,1,1)}
   const col=STAR[s.cls].c;const g=c.createRadialGradient(wx+ww*.78,wy+wh*.35,0,wx+ww*.78,wy+wh*.35,wh*.9);g.addColorStop(0,"#fff");g.addColorStop(.05,col);g.addColorStop(.3,col+"44");g.addColorStop(1,col+"00");c.fillStyle=g;c.fillRect(wx,wy-20,ww,wh+20);
-  const neb=c.createRadialGradient(wx+ww*.3,wy+wh*.5,4,wx+ww*.3,wy+wh*.5,ww*.5);neb.addColorStop(0,"rgba(255,120,200,.18)");neb.addColorStop(1,"rgba(255,120,200,0)");c.fillStyle=neb;c.fillRect(wx,wy-20,ww,wh+20);
+  const neb=c.createRadialGradient(wx+ww*.3,wy+wh*.5,4,wx+ww*.3,wy+wh*.5,ww*.5);neb.addColorStop(0,"rgba(255,120,200,.18)");neb.addColorStop(1,"rgba(255,120,200,0)");c.fillStyle=neb;c.fillRect(wx,wy-20,ww,wh+20)}
   c.restore();
   c.strokeStyle="#4a3f6a";c.lineWidth=5;c.beginPath();c.moveTo(wx,wy+wh);c.lineTo(wx,wy+wh*.25);c.quadraticCurveTo(wx+ww/2,wy-wh*.15,wx+ww,wy+wh*.25);c.lineTo(wx+ww,wy+wh);c.stroke();
   c.lineWidth=3;for(const f of [.33,.66]){c.beginPath();c.moveTo(wx+ww*f,wy+wh);c.lineTo(wx+ww*f,wy+wh*.02+Math.abs(f-.5)*wh*.35);c.stroke()}c.lineWidth=1;
@@ -3421,14 +3469,14 @@ function drawLounge(cv){
   for(const tx of [.2,.48]){c.fillStyle="#2c2140";c.fillRect(W*tx-2,H*.74,4,H*.14);c.fillStyle="#5a4680";c.beginPath();c.ellipse(W*tx,H*.74,W*.06,H*.03,0,0,Math.PI*2);c.fill();
     c.fillStyle="#ffd36b";c.fillRect(W*tx-3,H*.71,3,6);c.fillStyle="#7fe3ff";c.fillRect(W*tx+5,H*.71,3,5)}
   // people: bartender behind the counter, others by the tables
-  const spots={bar:[.84,.62],loc:[.13,.95],vis:[.56,.95],crew:[.29,.95]};
+  const spots={bar:[.84,.62],loc:[.13,.95],sp1:[.4,.95],vis:[.56,.95],crew:[.29,.95],kr:[.67,.95]};
   const sc=H/170;
   for(const p of L.pats){const[px,py]=spots[p.id]||[.4,.95];c.save();c.translate(W*px,H*py);c.scale((p.id==="bar"?-1:1)*sc*(p.id==="bar"?.85:1),sc*(p.id==="bar"?.85:1));drawBeing(c,p,0,false);c.restore()}
   // bar front drawn over the bartender
   const bf=c.createLinearGradient(0,by,0,H*.75);bf.addColorStop(0,"#6b4f8f");bf.addColorStop(1,"#2c2140");c.fillStyle=bf;c.fillRect(bx,by+H*.08,W*.27,H*.33);
   c.fillStyle="rgba(255,143,184,.6)";c.fillRect(bx,by+H*.08,W*.27,2);
   // sign
-  c.font=`${Math.round(H*.07)}px VT323, monospace`;c.textAlign="center";c.save();c.shadowColor="#ff8fb8";c.shadowBlur=10;c.fillStyle="#ff8fb8";c.fillText("STARLIGHT LOUNGE",W*.855,H*.13);c.restore();
+  c.font=`${Math.round(H*.07)}px VT323, monospace`;c.textAlign="center";c.save();c.shadowColor="#ff8fb8";c.shadowBlur=10;c.fillStyle="#ff8fb8";c.fillText(port.colony?(port.colony.alien?`${port.colony.short} cantina`:port.colony.stage>=2?"Colonists' tavern":"Mess hall").toUpperCase():"STARLIGHT LOUNGE",W*.855,H*.13);c.restore();
 }
 
 // =====================================================================
@@ -3767,7 +3815,7 @@ function makeAlienBases(a){
   const n=Math.min(cands.length,1+Math.floor((d.str||3)/3));
   for(let k=0;k<n;k++){const s=cands[k];const ps=s.planets.filter(p=>!p.colony&&!p.outpost&&!p.alienOutpost&&!p.vaelSite);if(!ps.length)continue;pick(r,ps).alienOutpost=a.key}
 }
-function ensureAlienBases(){for(const a of G.aliens||[])makeAlienBases(a)}
+function ensureAlienBases(){for(const a of G.aliens||[])makeAlienBases(a);ensureAlienColonies()}
 const outpostsOf=(s,key)=>s.planets.filter(p=>p.alienOutpost===key);
 // where help comes from if you fight this species here
 function reinforceSource(a,s){
@@ -3825,7 +3873,8 @@ function tellAboutInstallation(how,onlyKey){
   const opts=[];
   for(const s of G.systems){if(s.deep)continue;
     if(s.alienBase&&!s.abKnown&&!s.alien&&(!onlyKey||s.alienBase===onlyKey))opts.push(()=>revealBase(s,how)&&`the ${def(s.alienBase).name} starbase at ${s.name}`);
-    for(const p of s.planets)if(p.alienOutpost&&!p.aoKnown&&(!onlyKey||p.alienOutpost===onlyKey))opts.push(()=>revealOutpost(s,p,how)&&`the ${def(p.alienOutpost).name} outpost on ${p.name}`)}
+    for(const p of s.planets)if(p.alienOutpost&&!p.aoKnown&&(!onlyKey||p.alienOutpost===onlyKey))opts.push(()=>revealOutpost(s,p,how)&&`the ${def(p.alienOutpost).name} outpost on ${p.name}`)
+    for(const p of s.planets)if(p.alienColony&&!p.acKnown&&!s.alien&&(!onlyKey||p.alienColony===onlyKey))opts.push(()=>{p.acKnown=true;const d=def(p.alienColony);if(how)addRumor(`${how}: the ${d.name} have a colony, ${p.colonyName}, on ${p.name} in the ${s.name} system (${fmt(s.x)}, ${fmt(-s.y)}). Visitors can trade there.`);return `the ${d.name} colony on ${p.name}`})}
   if(!opts.length)return null;return pick(Math.random,opts)();
 }
 // will they sell to you? friendly always; neutral/wary sometimes (decided once per visit); hostile never
@@ -4569,7 +4618,7 @@ function ionHtml(){const sh=ship();if(!G.vparts||!G.vparts.length)return "";
 window.addEventListener("keydown",e=>{if(gameMode!=="captain"||!G.ship||typing(e)||!$("modal").hidden||land||(port&&port.open))return;
   if(e.key==="1"){e.preventDefault();toggleShields();if(!enc)renderCaptain()}else if(e.key==="2"){e.preventDefault();toggleArm();if(!enc)renderCaptain()}else if(e.key==="3"){e.preventDefault();toggleIon();if(!enc)renderCaptain()}});
 
-const VERSION="0.74"; // bump with every change
+const VERSION="0.76.1"; // bump with every change
 
 // =====================================================================
 // ---------- AUTOMATIC BACKUPS THAT SURVIVE CLEARING THE BROWSER ----------
@@ -4684,7 +4733,7 @@ const MANUAL=[
 <li><b>Meet the neighbors.</b> Alien species have their own space, attitudes and rivalries. How you treat them decides how they treat you.</li>
 <li><b>Stay alive.</b> Fuel, hull and crew are your lifelines. Run low on any of them far from home and you'll be calling for help.</li>
 </ul>
-<p>Two modes are at the top left: <b>Builder</b>, for creating and editing galaxies, and <b>Captain</b>, for playing them.</p>`},
+<p>The <b>title screen</b> lets you choose a mode: <b>Captain</b>, to play, or <b>Builder</b>, to create and edit galaxies. You can switch modes any time at the top left, and the <b>Title</b> link under the Starforge name takes you back to the title screen.</p>`},
  {t:"Known species",h:`<h3>Peoples of known space</h3>
 <p>Six peoples are known to share this region of the galaxy. More are said to live past the frontier. Each species has its own territory. You'll see it on the map once you've met them. Their attitude toward you ranges from Friendly through Neutral and Wary to Hostile, and it changes with how you treat them.</p>
 <table>
@@ -4696,6 +4745,7 @@ const MANUAL=[
 <tr><td><b style="color:#ff5470">Skarr Dominion</b></td><td>Raiders in black, barbed ships with weapon ports glowing red. They see most travelers as prey. Avoid them, or come armed.</td></tr>
 <tr><td><b style="color:#d36bff">Thexx Hive</b></td><td>Pulsing organic hulks that seem to swallow starlight. They do not talk. Nobody who has met them wants to again.</td></tr>
 </table>
+<p>Each species also has a few <b>colonies</b> in its own space. And travelers in cantinas tell stories of peoples beyond the frontier that no chart shows. Some of those stories may even be true.</p>
 <p class="hint">Hailing, trading fairly and answering distress calls improve relations. Firing on a species, scanning them without asking, or flying armed through their space does the opposite. Species can also be at war with each other.</p>`},
  {t:"The Vael",h:`<h3>The ones who came first</h3>
 <p>Long before any of today's peoples reached the stars, the <b>Vael</b> spread through this part of the galaxy. Then they were gone. No one knows where they went or why.</p>
@@ -4733,6 +4783,22 @@ const MANUAL=[
 <tr><td><b>Observation deck</b></td><td>A window onto the docking bay, where you can see your ship as she looks today.</td></tr>
 </table>
 <p class="hint">Starbase services are also on the <b>Starbase</b> tab while you're docked, if you'd rather skip the walk.</p>`},
+ {t:"Colonies",h:`<h3>Visiting colonies</h3>
+<p>Colonies are towns on planets, not starbases. Fly to the planet, move into orbit, and choose <b>Visit colony</b> (1 fuel for the shuttle). You walk the colony's street the same way you walk the spaceport.</p>
+<h3>Alien colonies</h3>
+<ul>
+<li>Each species keeps a few colonies in its own space. You'll see them once you've scanned the planet, or when someone tells you where one is.</li>
+<li><b>Friendly</b> and <b>Neutral</b> species let you land for free. <b>Wary</b> ones charge a landing fee. <b>Hostile</b> ones order you away.</li>
+<li>Rovers aren't allowed on alien colony worlds. You visit as a guest.</li>
+</ul>
+<table>
+<tr><th>Place</th><th>What it's for</th></tr>
+<tr><td><b>Trade post</b></td><td>Buy fuel and local minerals. Sell your cargo, relics and specimens. Goods the colony wants are marked <i>Wanted</i> and pay much more than a starbase. Some species sell rare ship parts here.</td></tr>
+<tr><td><b>Colony hall</b></td><td>Talk to an official. You'll learn where their homeworld is, how they feel about you, and what they pay extra for.</td></tr>
+<tr><td><b>Cantina</b></td><td>Drinks, dice and gossip, like the Lounge, but with local regulars. Strangers drift through cantinas too, and some of them offer work. Keep an eye on your credits.</td></tr>
+</table>
+<h3>Your own colonies</h3>
+<p>Worlds you recommend become colonies of their own. Visit them to buy fuel from their refinery, sell them metal to build with, check on their progress at the colony office, and share a drink in the mess hall or tavern.</p>`},
  {t:"Exploring",h:`<h3>Getting around</h3>
 <ol>
 <li><b>Pick a star</b> on the map and press <b>Jump</b>. If you don't have enough fuel you can jump anyway, but you'll drop out in deep space and need the radio.</li>
@@ -4752,12 +4818,17 @@ const MANUAL=[
 <p>When you meet a ship, the game switches to the <b>tactical screen</b>: your ship, theirs, and a comms panel on the right.</p>
 <ul>
 <li><b>Hail</b> to talk. Friendly hails improve relations and can turn up rumors.</li>
+<li><b>Ask questions</b> once you've hailed: who they are, where they're from, what they trade, any news, how they get on with their neighbors, and what dangers are about. Wary species may refuse to answer, and push too hard and they'll close the channel.</li>
+<li><b>Wanted goods:</b> every species pays extra for certain minerals, and some for relics or live wildlife. Ask what they trade, or visit one of their colonies, to find out. It's noted in your Known species list.</li>
 <li><b>Request video</b> to see who you're talking to. Either side can refuse.</li>
 <li><b>Trade</b> for fuel, minerals and relics. Your captain's Charisma gets better prices.</li>
 <li><b>Scan</b> a ship to see its weapons, shields, cargo and fuel. Better sensors and a better science officer show more. They always notice the scan.</li>
 <li><b>Tolls:</b> some species charge passage. Pay, refuse, or talk your way out.</li>
 <li><b>Fight</b> if you must. Arm weapons and raise shields first. Range matters: the closer you are, the more you hit, and each weapon has a maximum range. You can target any ship on screen.</li>
+<li><b>Surrender:</b> a badly beaten ship may give up. Board it and take its cargo and the ship itself, let it go (they'll remember the mercy), or finish it (everyone will remember that, too).</li>
+<li><b>Towing a prize:</b> a captured ship sells at your starbase when you dock. Towing it burns about a third more fuel per jump. You can only tow one ship at a time. Board another, and your crew strips it for parts instead.</li>
 <li><b>Wrecks</b> can be scavenged after a fight for salvage, cargo and fuel.</li>
+<li><b>Raiders</b> haunt the edges of known space. Not every one of them wants a fight. Some just want to be paid.</li>
 <li><b>Distress calls</b> come in while you travel. Answer them before you next dock, and you may make a friend.</li>
 </ul>
 <p class="hint">Whether your weapons are armed and your shields are up changes how other ships react to you.</p>`},
@@ -4785,9 +4856,7 @@ const MANUAL=[
 <ul>
 <li>Your game <b>saves automatically</b> in your browser as you play.</li>
 <li><b>Backups:</b> the game keeps a few snapshots in the browser (every 10 game days, and before any import, restore or new galaxy). You can restore one from the Log tab.</li>
-<li><b>Automatic backup:</b> clearing your browser's data erases its saves, so the game also keeps a copy somewhere safer:
-  <ul><li>On claude.ai, it backs up to your account every few minutes.</li>
-  <li>In the downloaded game file, choose a backup file once and it's kept up to date (Chrome and Edge), or a backup file downloads every 10 game days (other browsers).</li></ul></li>
+<li><b>Automatic backup:</b> clearing your browser's data erases its saves, so the game also keeps a copy somewhere safer. Choose a backup file once and it's kept up to date (Chrome and Edge), or a backup file downloads every 10 game days (other browsers).</li>
 <li><b>Export</b> gives you your whole game as text to keep anywhere. <b>Import</b> or <b>Load a backup file</b> brings it back, in any browser.</li>
 </ul>`}
 ];
@@ -4806,7 +4875,7 @@ function openDocPanel(pages,title,startIdx){
 // ---------- ONLINE UPDATER (for the downloaded game file) ----------
 //   checks a version.json on your web host; the new file carries your save along with it
 // =====================================================================
-const UPD_DEFAULT="";   // e.g. "https://yourname.github.io/starforge/" once the game is hosted
+const UPD_DEFAULT="https://bugabooman-lgtm.github.io/starforge/";   // where new versions are published
 function updBase(){let u="";try{u=localStorage.getItem(KEY+".upd")||""}catch{}
   // a file that came from the updater remembers where it came from; a copy played on its web host checks home
   u=(u||window.STARFORGE_UPD||UPD_DEFAULT||"").trim();
@@ -4853,6 +4922,282 @@ function renderUpdater(){const el=$("updBox");if(!el)return;
   $("updSave").onclick=()=>{try{localStorage.setItem(KEY+".upd",$("updUrl").value.trim())}catch{}toast("Update address saved");UPD.state="";renderUpdater()};
 }
 
+
+// =====================================================================
+// ---------- TITLE SCREEN ----------
+// =====================================================================
+const title={raf:0,t:0,stars:null};
+function showTitle(){const el=$("title");el.hidden=false;$("tVer").textContent="Version "+VERSION;
+  const sh=G&&G.ship;$("tSave").textContent=sh?`${G.seedText?`Galaxy “${G.seedText}”`:"Your galaxy"} · Day ${sh.day||0} · ${sh.name}`:"No captain's game yet. Captain starts one.";
+  $("tCapt").textContent=sh?"Continue as Captain":"Captain";
+  const cv=$("titleCv");title.stars=null;cancelAnimationFrame(title.raf);let last=performance.now();
+  const loop=now=>{if($("title").hidden)return;const dt=Math.min(.05,(now-last)/1000);last=now;title.t+=dt;
+    const W2=cv.clientWidth,H2=cv.clientHeight,dpr=Math.min(2,window.devicePixelRatio||1);if(cv.width!==Math.round(W2*dpr)){cv.width=Math.round(W2*dpr);cv.height=Math.round(H2*dpr)}
+    const c=cv.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);
+    if(!title.stars){const r=rng(1986);title.stars=Array.from({length:260},()=>({x:r(),y:r(),z:.2+r()*.8,tw:r()*6}))}
+    const g=c.createRadialGradient(W2*.5,H2*.55,10,W2*.5,H2*.55,Math.max(W2,H2)*.8);g.addColorStop(0,"#0c1530");g.addColorStop(1,"#02030a");c.fillStyle=g;c.fillRect(0,0,W2,H2);
+    // a faint nebula glow drifting behind the stars
+    const nx=W2*(.3+.05*Math.sin(title.t*.05)),ny=H2*.35,ng=c.createRadialGradient(nx,ny,0,nx,ny,Math.max(W2,H2)*.45);ng.addColorStop(0,"rgba(92,225,230,.08)");ng.addColorStop(.6,"rgba(155,120,255,.04)");ng.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=ng;c.fillRect(0,0,W2,H2);
+    for(const st of title.stars){st.x-=dt*.006*st.z;if(st.x<0)st.x+=1;const a=.25+st.z*.6+Math.sin(title.t*2+st.tw)*.12;c.fillStyle=`rgba(216,226,245,${a})`;const sz=st.z>.85?2:1;c.fillRect(st.x*W2,st.y*H2,sz,sz)}
+    title.raf=requestAnimationFrame(loop)};
+  title.raf=requestAnimationFrame(loop)}
+function leaveTitle(mode){$("title").hidden=true;cancelAnimationFrame(title.raf);setGameMode(mode)}
+
+// =====================================================================
+// ---------- COLONIES YOU CAN VISIT: alien colonies in home territories, and your own ----------
+// =====================================================================
+// what each species pays a premium for (fixed per galaxy)
+function wantsOf(key){G.wants=G.wants||{};if(G.wants[key])return G.wants[key];const r=rng(hashStr("want:"+key)+G.seed);
+  const pool=Object.keys(MIN_PRICE).sort(()=>r()-.5);const w={minerals:pool.slice(0,2),relics:r()<.45,fauna:r()<.4};
+  if(key==="ossari")w.relics=true;if(key==="lumari")w.fauna=true;if(key==="krillian"){w.relics=true;w.minerals=["Endurium","Platinum"]}
+  return G.wants[key]=w}
+const WANT_MULT=1.8;
+const wantText=(key)=>{const w=wantsOf(key);return [w.minerals.join(" and "),w.relics?"Vael relics":"",w.fauna?"live wildlife specimens":""].filter(Boolean).join(", ")};
+// alien colonies: 1-3 per species, inside their territory, on the friendliest worlds
+function ensureAlienColonies(){
+  for(const a of G.aliens||[]){if(a.colsMade)continue;const h=alienSys(a);if(!h)continue;a.colsMade=true;const r=rng(hashStr("col:"+a.key)+G.seed*5);const d=def(a.key);
+    const good={Temperate:4,Ocean:3,Desert:2,Rock:2,Frozen:1,Molten:1};
+    const cands=[];for(const s of G.systems){if(s.deep||s.unknown||s.inNeb||s.vael||Math.hypot(s.x-h.x,s.y-h.y)>a.radius)continue;
+      s.planets.forEach((p,i)=>{if(p.native||p.alienOutpost||p.alienColony||p.colony||p.vaelSite||p.outpost||p.type==="Gas giant"||p.type==="Asteroid belt")return;cands.push({s,i,w:(good[p.type]||1)+(p.type===d.world?3:0)+r()})})}
+    cands.sort((x,y)=>y.w-x.w);const n=Math.min(cands.length,rint(r,1,3));const used=new Set();
+    for(const c of cands){if(used.size>=n)break;if(used.has(c.s.id))continue;used.add(c.s.id);const p=c.s.planets[c.i];p.alienColony=a.key;p.colonyName=`${pick(r,["New","Far","High","Deep","Bright","Old"])} ${pick(r,["Haven","Reach","Hold","Rest","Landing","Bloom","Forge","Market"])}`}}
+}
+const colVisible=(s,p)=>gameMode==="build"||known(s,p)||p.acKnown||(G.ship&&ship().at===s.id&&ship().orbit===s.planets.indexOf(p));
+// who lets you in
+function colonyAccess(p){
+  if(p.colony)return {ok:true,fee:0};const a=G.aliens.find(x=>x.key===p.alienColony);if(!a)return {ok:false,why:"Nobody answers."};const st=stanceOf(a.att),d=def(a.key);
+  if(st==="Hostile")return {ok:false,why:`The ${d.name} order you away from their colony.`};
+  if(st==="Wary")return {ok:true,fee:Math.round((60+d.str*25)*priceMult()/5)*5,why:`The ${d.name} charge outsiders a landing fee.`};
+  return {ok:true,fee:0}}
+function colonyHtml(s,i,inOrbit){const p=s.planets[i];
+  if(p.alienColony&&colVisible(s,p)){const d=def(p.alienColony),acc=colonyAccess(p);
+    return `<div class="item" style="border-color:${d.color}"><div>${esc(d.name)} colony · ${esc(p.colonyName||"")}<div class="d">${acc.ok?(acc.fee?`${esc(acc.why)} (${acc.fee} cr).`:"They'll welcome you down to their trade post and cantina."):esc(acc.why)}</div></div><div></div></div>`}
+  if(p.colony)return `<div class="item" style="border-color:var(--cyan)"><div>Your ${COLONY_STAGES[p.colony.stage].toLowerCase()} on ${esc(p.name)}<div class="d">The colonists would be glad of a visit.</div></div><div></div></div>`;
+  return ""}
+function colonyButtons(s,i){const p=s.planets[i];if(!(p.colony||(p.alienColony&&colVisible(s,p))))return "";const acc=colonyAccess(p);
+  return `<button class="primary" id="sVisit" ${acc.ok&&ship().fuel>=1?"":"disabled"}>${acc.ok?`Visit colony${acc.fee?` · ${acc.fee} cr`:""} · 1 fuel`:"Visit refused"}</button>`}
+function visitColony(s,i){const p=s.planets[i],sh=ship(),acc=colonyAccess(p);if(!acc.ok||enc)return;if(sh.credits<acc.fee){toast("Not enough credits for the landing fee");return}
+  if(sh.fuel<1){toast("Not enough fuel to land");return}
+  sh.credits-=acc.fee;sh.fuel=Math.round((sh.fuel-1)*10)/10;p.acKnown=true;if(acc.fee)logMsg(`Paid the ${def(p.alienColony).name} ${acc.fee} credits to land at ${p.colonyName}.`);
+  if(sysv.open)closeSystem();openColony(s,i)}
+
+// ---- the colony street reuses the spaceport corridor with its own doors
+const STARBASE_DOORS=DOORS.slice(),STARBASE_HALL=HALL_LEN;
+function colonyDoors(ctx){const col=ctx.color;
+  const list=[{k:"dock",name:"Landing pad",color:"#5ce1e6"},{k:"ctrade",name:ctx.alien?"Trade post":"Supply depot",color:"#ffb347"}];
+  if(!ctx.alien&&ctx.stage>=2||ctx.alien)list.push({k:"chall",name:ctx.alien?"Colony hall":"Colony office",color:col});
+  list.push({k:"cantina",name:ctx.alien?`${ctx.short} cantina`:ctx.stage>=2?"Colonists' tavern":"Mess hall",color:"#ff8fb8"});
+  list.forEach((d,j)=>d.x=170+j*DOOR_GAP);return list}
+function openColony(s,i){
+  const p=s.planets[i],alien=!!p.alienColony,d=alien?def(p.alienColony):null;
+  const ctx={s,i,p,alien,key:alien?p.alienColony:"home",color:alien?d.color:"#7fe3ff",short:alien?d.name.split(" ")[0]:"",stage:p.colony?p.colony.stage:3,name:alien?p.colonyName:p.name+" colony"};
+  port.colony=ctx;DOORS=colonyDoors(ctx);HALL_LEN=170+(DOORS.length-1)*DOOR_GAP+200;
+  port.open=true;port.room=null;port.x=DOORS[0].x;port.facing=1;port.target=null;port.lounge=null;
+  $("port").hidden=false;$("room").hidden=true;$("portName").textContent=alien?`${ctx.name} · ${d.name} colony on ${p.name}`:`${p.name} colony`;
+  const r=rng(Date.now()),folk=[];
+  const look=alien?(CREW_LOOK[ctx.key]||"Alien"):"Human";
+  for(let k=0,n=rint(r,2,4);k<n;k++){if(alien)folk.push({sp:look,col:d.color,seed:Math.floor(r()*1e9)});else{const sp=pick(r,["Human","Human","Human","Lumari","Vorrn"]);folk.push({sp,col:speciesColor(sp),seed:Math.floor(r()*1e9)})}}
+  if(r()<.25)folk.push({sp:"Alien",col:KRILL_DEF.color,seed:4242});
+  port.npcs=folk.slice(0,5).map(f=>({...f,x:r()*HALL_LEN,v:(r()<.5?-1:1)*(18+r()*28),h:.92+r()*.16,pause:r()*2}));
+  logMsg(alien?`Landed at ${ctx.name}, a ${d.name} colony on ${p.name}.`:`Visited your colony on ${p.name}.`);
+  sizePort();cancelAnimationFrame(port.raf);let last=performance.now();
+  const loop=now=>{const dt=Math.min(.05,(now-last)/1000);last=now;tickPort(dt);drawPort();if(port.open)port.raf=requestAnimationFrame(loop)};
+  port.raf=requestAnimationFrame(loop);renderCaptain();
+}
+// a dome window onto the colony world's sky
+function drawColonyWindow(c,wx,wy,ww,wh,i,t){const ctx=port.colony,p=ctx.p;
+  const skyC={Temperate:["#4f86c6","#a8d0f0"],Ocean:["#3a6fb0","#9cc6ee"],Desert:["#c98b4f","#f0c890"],Rock:["#5a5f6e","#a7a9b4"],Frozen:["#9db4cf","#e6f0fa"],Molten:["#3a1410","#a8452a"]}[p.type]||["#203050","#6080a0"];
+  const g=c.createLinearGradient(0,wy,0,wy+wh);g.addColorStop(0,skyC[0]);g.addColorStop(1,skyC[1]);c.fillStyle=g;c.fillRect(wx,wy,ww,wh);
+  const sx=wx+ww*(.25+.5*((i*37)%10)/10),sy=wy+wh*.28;const sc=STAR[ctx.s.cls].c;const sg=c.createRadialGradient(sx,sy,0,sx,sy,26);sg.addColorStop(0,"#fff");sg.addColorStop(.2,sc);sg.addColorStop(1,sc+"00");c.fillStyle=sg;c.fillRect(wx,wy,ww,wh);
+  const rr=rng(i*53+ctx.i);c.fillStyle=shade(skyC[0],-.45);c.beginPath();c.moveTo(wx,wy+wh);for(let x=0;x<=ww;x+=8)c.lineTo(wx+x,wy+wh*.72-rr()*wh*.18);c.lineTo(wx+ww,wy+wh);c.closePath();c.fill();
+  // other buildings of the colony on the horizon
+  for(let k=0;k<3;k++){const bx=wx+10+rr()*(ww-40),bw=10+rr()*18,bh=8+rr()*16;c.fillStyle=shade(ctx.color,-.35);c.fillRect(bx,wy+wh*.72-bh,bw,bh);c.fillStyle=Math.sin(t*2+k)>-.6?ctx.color:shade(ctx.color,-.5);c.fillRect(bx+3,wy+wh*.72-bh+3,2,2)}}
+
+// ---- trade post
+function postMoods(){const ctx=port.colony;if(!ctx.alien)return {buy:.85,sell:1.1};return tradeMoods(G.aliens.find(x=>x.key===ctx.key))}
+function postStock(){const ctx=port.colony;const key=`${ctx.s.id}:${ctx.i}:${ship().visits}`;if(ctx.stock&&ctx.stock.key===key)return ctx.stock;const r=rng(hashStr(key));
+  const goods=Object.keys(MIN_PRICE).filter(m=>m!=="Endurium"||ctx.alien).sort(()=>r()-.5).slice(0,ctx.alien?3:2).map(m=>({m,t:rint(r,3,12)}));
+  let part=null;if(ctx.alien){const k=specialtyOf(ctx.key);if(k&&ship().up[k]<6&&l6Have(k)<L6_NEED&&r()<.6)part={k,left:1}}
+  return ctx.stock={key,goods,part,fuel:ctx.alien?rint(r,30,90):ctx.stage>=2?120:25}}
+function postPrices(){const ctx=port.colony,m=postMoods(),charm=1-eff("cha")/400,boost=1+eff("cha")/300,w=ctx.alien?wantsOf(ctx.key):null;
+  return {fuel:Math.round((ctx.alien?10*m.buy*charm:ctx.stage>=2?7:12)*10)/10,
+    sell:x=>Math.round(MIN_PRICE[x]*(ctx.alien?1.05*m.sell*boost:(MIN_GROUP[x]==="metal"?1.25:1.05))*(w&&w.minerals.includes(x)?WANT_MULT:1)),
+    buy:x=>Math.round(MIN_PRICE[x]*1.35*m.buy*charm),relic:r=>Math.round(relicPrice(r)*(ctx.alien?m.sell*(w.relics?1.5:.9):.8)),
+    spec:sp=>Math.round(specPrice(sp)*(ctx.alien?(w.fauna?1.6:.7):.9)),part:Math.round(1500*m.buy*charm/10)*10}}
+function tradePostHtml(){const ctx=port.colony,sh=ship(),st=postStock(),P=postPrices(),room=tankCap(sh.up.tank)-sh.fuel,hold=cargoCap()-cargoUsed(),w=ctx.alien?wantsOf(ctx.key):null;
+  if(ctx.alien){const a=G.aliens.find(x=>x.key===ctx.key);if(a&&!a.wantsKnown){a.wantsKnown=true;logMsg(`The ${def(ctx.key).name} pay extra for ${wantText(ctx.key)}.`)}}
+  const cargo=Object.entries(sh.cargo||{}).filter(([,n])=>n>0);
+  return `${w?`<p class="hint" style="color:#ffd36b">The ${esc(def(ctx.key).name)} pay extra for ${esc(wantText(ctx.key))}.</p>`:`<p class="hint">Your colonists pay well for metal to build with, and sell spare fuel from their refinery${ctx.stage>=2?"":" (only a little while it's a settlement)"}.</p>`}
+    <div class="shop"><h2>Fuel</h2><div class="item"><div>Fuel<div class="d">${P.fuel} cr per unit · ${st.fuel} available · tanks ${Math.round(sh.fuel)}/${tankCap(sh.up.tank)}</div></div><button class="sm" id="cpFuel" ${room<1||st.fuel<1||sh.credits<P.fuel?"disabled":""}>Fill · ${Math.ceil(Math.min(room,st.fuel)*P.fuel)} cr</button></div>
+    ${st.part&&st.part.left>0&&l6Have(st.part.k)<L6_NEED?`<h2>Ship tech</h2><div class="item" style="border-color:#ffd36b"><div><span style="color:#ffd36b">${esc(L6[st.part.k].part)}</span><div class="d">${P.part} cr · for level 6 ${UPG[st.part.k].name.toLowerCase()} · you have ${l6Have(st.part.k)} of ${L6_NEED}</div></div><button class="sm" id="cpPart" ${sh.credits<P.part?"disabled":""}>Buy</button></div>`:""}
+    <h2>They sell</h2>${st.goods.filter(g=>g.t>0).map((g,j)=>`<div class="item"><div>${g.m}<div class="d">${P.buy(g.m)} cr per ton · ${g.t} available</div></div><button class="sm" data-cpbuy="${j}" ${hold<1||sh.credits<P.buy(g.m)?"disabled":""}>Buy 1</button></div>`).join("")||'<p class="hint">Nothing for sale today.</p>'}
+    <h2>They buy</h2>${cargo.length?cargo.map(([m,n])=>`<div class="item"><div>${m}${w&&w.minerals.includes(m)?' <span class="tag" style="color:#ffd36b">Wanted</span>':""}<div class="d">${P.sell(m)} cr per ton (starbase pays ${sellPrice(m)}) · you have ${n}</div></div><button class="sm" data-cpsell="${m}">Sell all · ${n*P.sell(m)} cr</button></div>`).join(""):'<p class="hint">Your hold is empty.</p>'}
+    ${(sh.relics||[]).map((r,j)=>`<div class="item"><div>${esc(r.name)}${w&&w.relics?' <span class="tag" style="color:#ffd36b">Wanted</span>':""}<div class="d">Relic · ${P.relic(r)} cr (starbase pays ${relicPrice(r)})</div></div><button class="sm" data-cprelic="${j}">Sell</button></div>`).join("")}
+    ${(sh.specimens||[]).map((sp,j)=>`<div class="item"><div>${esc(sp.name)}${w&&w.fauna?' <span class="tag" style="color:#ffd36b">Wanted</span>':""}<div class="d">Live specimen · ${P.spec(sp)} cr (starbase pays ${specPrice(sp)})</div></div><button class="sm" data-cpspec="${j}">Sell</button></div>`).join("")}</div>
+    <p class="hint">Credits ${Math.round(sh.credits).toLocaleString()} · Hold ${cargoUsed()}/${cargoCap()} t</p>`}
+function wireTradePost(el){const sh=ship(),st=postStock(),P=postPrices(),ctx=port.colony,who=ctx.alien?`the ${def(ctx.key).name} at ${ctx.name}`:`your colony on ${ctx.p.name}`;
+  const done=()=>{renderRoom();changed()};const on=(id,f)=>{const b=el.querySelector("#"+id);if(b)b.onclick=f};
+  on("cpFuel",()=>{const n=Math.min(tankCap(sh.up.tank)-sh.fuel,st.fuel,Math.floor(sh.credits/P.fuel));if(n<1)return;sh.fuel=Math.round((sh.fuel+n)*10)/10;st.fuel-=n;sh.credits-=Math.ceil(n*P.fuel);logMsg(`Bought ${Math.round(n)} fuel from ${who}.`);done()});
+  on("cpPart",()=>{const p=st.part;if(!p||sh.credits<P.part)return;sh.credits-=P.part;p.left--;gainL6Part(ctx.key,`Bought from ${who}:`);done()});
+  el.querySelectorAll("[data-cpbuy]").forEach(b=>b.onclick=()=>{const g=st.goods[+b.dataset.cpbuy];const pr=P.buy(g.m);if(sh.credits<pr||!addCargo(g.m,1))return;sh.credits-=pr;g.t--;done()});
+  el.querySelectorAll("[data-cpsell]").forEach(b=>b.onclick=()=>{const m=b.dataset.cpsell,n=sh.cargo[m]||0;if(!n)return;const pay=n*P.sell(m);sh.credits+=pay;delete sh.cargo[m];gainXP("com",2);if(ctx.alien)changeAtt(G.aliens.find(x=>x.key===ctx.key),1);logMsg(`Sold ${n} ${m} to ${who} for ${pay} credits.`);done()});
+  el.querySelectorAll("[data-cprelic]").forEach(b=>b.onclick=()=>{const j=+b.dataset.cprelic,r=sh.relics[j];if(!r)return;const pay=P.relic(r);sh.credits+=pay;sh.relics.splice(j,1);gainXP("com",3);logMsg(`Sold the ${r.name} to ${who} for ${pay} credits.`);done()});
+  el.querySelectorAll("[data-cpspec]").forEach(b=>b.onclick=()=>{const j=+b.dataset.cpspec,sp=sh.specimens[j];if(!sp)return;const pay=P.spec(sp);sh.credits+=pay;sh.specimens.splice(j,1);gainXP("sci",4);logMsg(`Sold a live ${sp.name} to ${who} for ${pay} credits.`);done()})}
+function colonyHallHtml(){const ctx=port.colony,sh=ship();
+  if(ctx.alien){const a=G.aliens.find(x=>x.key===ctx.key),d=def(ctx.key),st=stanceOf(a.att),h=alienSys(a);if(!a.known){a.known=true;addRumor(`At ${ctx.name}, the ${d.name} told you their homeworld is ${h.name} (${fmt(h.x)}, ${fmt(-h.y)}).`)}
+    const rels=(G.aliens||[]).filter(b=>b!==a&&(b.met||b.known)).map(b=>{learnRel(a.key,b.key);const v=relBetween(a.key,b.key);return `<span style="color:${relColor(v)}">${relWord(v)} with the ${esc(def(b.key).name)}</span>`});
+    return `<p class="hint" style="color:var(--text)">A ${esc(d.name)} official looks you over. ${st==="Friendly"?"“Welcome, friend of the colony.”":st==="Neutral"?"“State your business, and keep to the market.”":"“You've paid your fee. Don't make us regret it.”"}</p>
+      <div class="data" style="font-size:16px">Homeworld <b>${esc(h.name)}</b> (${fmt(h.x)}, ${fmt(-h.y)}) · Relations <b style="color:${stanceColor(st)}">${st}</b></div>
+      ${rels.length?`<p class="hint">Their view of their neighbors: ${rels.join(" · ")}</p>`:""}
+      <p class="hint" style="color:#ffd36b">They pay extra for ${esc(wantText(ctx.key))}.</p>`}
+  const p=ctx.p,age=(sh.day||0)-p.colony.founded;
+  return `<div class="data" style="font-size:16px">${esc(p.name)} · <b>${COLONY_STAGES[p.colony.stage]}</b> · founded day ${p.colony.founded} (${age} days ago)</div>
+    <p class="hint" style="color:var(--text)">${p.colony.stage===1?"A handful of prefab domes and a lot of hope.":p.colony.stage===2?"Streets, workshops and a school. The colonists are proud of what they've built.":"A busy town with its own starbase overhead."}</p>
+    <p class="hint">${p.colony.stage===1?`Grows into a full colony in about ${Math.max(0,30-age)} days.`:p.colony.stage===2?`Builds its own starbase in about ${Math.max(0,90-age)} days.`:"Fully established."}</p>`}
+
+// =====================================================================
+// ---------- THE KRILLIANS: galactic troublemakers, raiders, smugglers, necessary evil ----------
+// =====================================================================
+const KRILL_DEF={name:"Krillians",color:"#c8ff5a",base:-20,str:6,flee:.55,toll:0,hidden:true,
+  ship:"a rust-streaked, patched-together raider with far too many guns bolted on at odd angles",
+  hi:["Greetings, soft-shell! Today we are merchants. Tomorrow, who can say?"],warn:["Lower your shields and your expectations. This is a robbery."]};
+const KRILL_NAMES=["Snazz","Gribbo","Twell","Ozzik","Pell-Pell","Vrank","Mibbit","Zuul","Kreeb","Noddle"];
+const KRILL_SAYS=["A full hold is an empty heart. Unless the hold is full of hearts. Then it's evidence.",
+  "Every star is a coin the universe forgot to spend.","I once stole a moon. Gave it back. It kept looking at me.",
+  "Trust is like fuel. Nobody has enough, and it explodes if you handle it wrong.","The void does not judge. The void also does not tip.",
+  "We are all just cargo, captain, waiting to be smuggled somewhere better.","My grandmother said: never rob a Vorrn before breakfast. Wise. Also she was eaten.",
+  "If a ship drifts in the dark and nobody salvages it, was it ever really insured?","Honesty is the best policy. Piracy is the best-paying policy.",
+  "I am not lost. I am exploring the concept of 'where'.","Credits can't buy happiness. But they can rent it, by the hour, at very fair rates.",
+  "Do you ever look at a nebula and think: I could sell that?","The universe is expanding. So is my list of enemies. Coincidence? Yes.",
+  "Two things are infinite: space, and the number of people who want me arrested."];
+const KRILL_EXCUSE=["Ah, the job. Yes. It went where all things go: away. Like your credits. Philosophically, were they ever yours?",
+  "I did the job. In my heart. The physical part is still in development.","You paid, I vanished. Such is the dance of commerce. Let us dance again!"];
+const BAR_KRILL=["Watch your credits around that one. Krillians.","I serve 'em because their money's good. That's all it is.",
+  "Can't trust a Krillian. Can't run a port without one, either.","If that Krillian offers you a 'job', count your fingers after you shake on it.",
+  "Krillians. Raiders, smugglers, liars. Best tippers in the sector, though."];
+function krillFoe(){G.krill=G.krill||{key:"krillian",att:KRILL_DEF.base,met:false,known:true,radius:0,trust:0};return G.krill}
+const krillPayoff=()=>Math.round((350+((ship().day||0)*1.5)+Math.random()*250)*priceMult()/10)*10;
+// they turn up in cantinas everywhere, now and then
+function krillianPatron(r,col){if(r()>=(col?.35:.3))return null;return {id:"kr",kind:"krillian",name:pick(r,KRILL_NAMES),sp:"Alien",col:KRILL_DEF.color,seed:hashStr("krill")+Math.floor(r()*9)}}
+// raids on the far outskirts
+function maybeKrillianRaid(sys){if(sys.unknown||sys.deep)return false;const R=G.radius||130;if(Math.hypot(sys.x,sys.y)<R-80||Math.random()>=.1)return false;
+  const k=krillFoe();startEncounter(k,false,true);enc.fighting=true;enc.reinfActive=false;enc.payoff=krillPayoff();
+  encLine(`<b style="color:${KRILL_DEF.color}">Krillian raiders!</b> “${esc(pick(Math.random,KRILL_DEF.warn))}”`);
+  encLine(`<span class="hint">Krillians always have a price. Hail them, or pay ${enc.payoff} credits to make them go bother someone else.</span>`);renderEnc();return true}
+const krillPayBtn=()=>{enc.payoff=enc.payoff||krillPayoff();return `<button id="ePayoff" style="border-color:${KRILL_DEF.color};color:${KRILL_DEF.color}" ${ship().credits<enc.payoff?"disabled":""}>Pay them off · ${enc.payoff} cr</button>`};
+function payKrillians(){const sh=ship(),c=enc.payoff||krillPayoff();if(sh.credits<c){encLine("You don't have enough credits. They laugh, and keep shooting.");renderEnc();return}
+  sh.credits-=c;changeAtt(G.krill,4);G.krill.trust=(G.krill.trust||0)+.2;enc.fighting=false;enc.done=true;enc.toll=0;
+  encLine(`You transfer ${c} credits. “${esc(pick(Math.random,["Pleasure doing crime with you.","See? Everyone wins. Mostly us.","Generous! We'll rob someone else in your honor."]))}” The Krillians peel away.`);
+  logMsg(`Paid Krillian raiders ${c} credits to leave you alone.`);renderEnc();renderCaptain()}
+
+// ---- Krillian jobs (offered in cantinas)
+const KJOBS={smuggle:{name:"Smuggling run",base:450,d:"They'll slip you past tolls and patrols in unfriendly space for the next 12 days."},
+  raid:{name:"Raid a rival",base:650,d:"They'll hit a species of your choice for 15 days: fewer of its ships bother you, you get a cut of the loot, and nobody knows you paid. Probably."},
+  dig:{name:"Dig up a secret",base:400,d:"They know where things are that nobody else will tell you about."}};
+const kTrust=()=>Math.min(5,(G.krill&&G.krill.trust)||0);
+const kJobCost=k=>Math.round(KJOBS[k].base*(1-kTrust()*.07)*(1-eff("cha")/500)/10)*10;
+const kVanish=()=>Math.max(.05,.22-kTrust()*.035);
+function krillJobHtml(){const L=port.lounge;if(!L||!L.krJob)return "";const sh=ship();
+  const raidT=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)!=="Friendly");
+  return `<div class="member" style="border-color:${KRILL_DEF.color}"><h2 style="color:${KRILL_DEF.color}">${esc(L.krJob.name)} has work for you</h2>
+    <p class="hint">“Krillians do what others won't. For a fee. Always for a fee.” Paid up front. ${kTrust()>=2?"They seem to trust you a little.":"They don't know you yet, so it costs more."}</p>
+    <div class="shop">${Object.entries(KJOBS).map(([k,j])=>`<div class="item"><div>${j.name}<div class="d">${j.d}</div>${k==="raid"?`<select id="kRaidT" aria-label="Species to raid" style="margin-top:4px">${raidT.map(a=>`<option value="${a.key}">${esc(def(a.key).name)}</option>`).join("")}</select>`:""}</div>
+      <button class="sm" data-kjob="${k}" ${L.krJob.done||sh.credits<kJobCost(k)||(k==="raid"&&!raidT.length)?"disabled":""}>${kJobCost(k)} cr</button></div>`).join("")}</div>
+    ${L.krJob.done?'<p class="hint">They\'ve taken one job tonight. That\'s plenty, they say, for one night of honest crime.</p>':""}</div>`}
+function takeKrillJob(k){const L=port.lounge,sh=ship(),cost=kJobCost(k);if(!L||!L.krJob||L.krJob.done||sh.credits<cost)return;
+  let target=null;if(k==="raid"){target=($("kRaidT")||{}).value;if(!target)return}
+  sh.credits-=cost;L.krJob.done=true;const who=L.krJob.name;
+  if(Math.random()<kVanish()){G.krill=krillFoe();G.krill.stiffed=(G.krill.stiffed||0)+1;
+    loungeSay(`${who} pockets your ${cost} credits, says “Back in a moment,” and walks out the airlock door. You don't see them again.`);logMsg(`A Krillian named ${who} took ${cost} credits for a job and vanished.`);renderRoom();changed();return}
+  G.krill=krillFoe();G.krill.trust=(G.krill.trust||0)+1;const day=sh.day||0;
+  if(k==="smuggle"){sh.krSmuggle=day+12;loungeSay(`${who}: “Your cargo is now invisible. Not literally. Mostly literally.”`);logMsg(`Krillian smugglers will slip you past tolls and patrols in unfriendly space until day ${day+12}.`)}
+  else if(k==="raid"){sh.krRaid={key:target,until:day+15,due:day+3};loungeSay(`${who}: “The ${def(target).name}? Oh, we love hitting them. We'd do it for free. We won't, but we would.”`);logMsg(`Krillians will raid the ${def(target).name} until day ${day+15}. Their ships will trouble you less, and you'll get a cut.`)}
+  else{let tip=null;{const pt=tellAboutPart(`${who}, a Krillian`);if(pt)tip=`There's a piece of old Vael machinery in the ruins on ${pt}`;else{const ins=tellAboutInstallation(`${who}, a Krillian`);if(ins)tip=`Need fuel? Try ${ins}. They'll sell, if they like your face`}}
+    tip=tip||(()=>{const t=G.systems.filter(x=>!x.scanned&&!x.rumor&&!x.deep&&!x.inNeb&&!x.unknown&&x.planets.some(q=>q.minerals.includes("Endurium")||q.ruins)).sort(()=>Math.random()-.5)[0];
+      if(!t)return null;t.rumor=true;addRumor(`${who}, a Krillian: there's Endurium or old ruins worth seeing at ${t.name} (${fmt(t.x)}, ${fmt(-t.y)}).`);return `Go look at ${t.name}. Endurium, or old ruins, or both`})();
+    loungeSay(tip?`${who} leans in: “${tip}. You didn't hear it from me. You heard it from a much more honest Krillian.”`:`${who}: “Everything I know, you already know. Tragic, for both of us.” They keep the credits.`)}
+  gainXP("cha",3);renderRoom();changed()}
+// paid raids settle up over time
+function krillTick(){const sh=ship();if(!sh||!sh.krRaid)return;const k=sh.krRaid,day=sh.day||0;
+  if(!k.paid&&day>=k.due){k.paid=true;const cut=Math.round(200+Math.random()*400);sh.credits+=cut;const m=pick(Math.random,["Titanium","Cobalt","Platinum"]),t=addCargo(m,rint(Math.random,2,5));
+    logMsg(`Word from the Krillians: they hit the ${def(k.key).name} hard. Your cut: ${cut} credits${t?` and ${t} tons of ${m}`:""}.`);
+    if(Math.random()<.15){const a=G.aliens.find(x=>x.key===k.key);if(a){changeAtt(a,-15);logMsg(`The ${def(k.key).name} found out who paid for the raid. They're furious.`)}}}
+  if(day>k.until)sh.krRaid=null}
+const krSmuggling=()=>{const sh=ship();return sh&&sh.krSmuggle&&(sh.day||0)<=sh.krSmuggle};
+
+// ---- small talk and stories from beyond the frontier
+const SMALL_TALK=[s=>`The noodles at ${s} are twice as good as anything they serve here. I'd fly back just for those.`,s=>`Don't drink the blue stuff at ${s}. Trust me.`,
+  ()=>"My cousin swears the gravity on this station is two percent heavier on Tuesdays.",()=>"I've been trying to win at dice here for six years. Six years.",
+  s=>`Best view in the sector is the bar at ${s}. Worst prices, too.`,()=>"Did you know Vorrn can't taste sweet things? Explains a lot about them.",
+  ()=>"I had a ship once. Lovely ship. Lost her in a card game. Won her back. Lost her again.",s=>`The last time I was at ${s} someone sold me a 'genuine' Vael relic. It was a spoon.`];
+function smallTalk(){const names=G.systems.filter(x=>x.starbase||x.planets.some(p=>p.colony||p.alienColony)).map(x=>x.name);const s=names.length?pick(Math.random,names):"the last port";return pick(Math.random,SMALL_TALK)(s)}
+// peoples past the edge of known space: real species you can meet one day (some are never spoken of)
+const FRONTIER_LORE={selenn:["Out past the rim there's a people who sing to their ships, and the ships sing back. The Selenn Choir, they call themselves.","A trader told me the Selenn build ships out of crystal and music. I don't know what that means either."],
+  drovath:["Beyond the frontier the Drovath Pact taxes everything that moves. Paperwork for breathing, I heard.","The Drovath? Desert folk, all antennae and rules. Fair, if you follow every one of them."],
+  quarn:["If you ever meet the Quarn Ravagers out past the edge, don't bother talking. Just run.","The Quarn strip ships down to the frame and wear the hull plates. Ice-world raiders, the worst of them."],
+  krillian:["Krillians? Everywhere and nowhere. They'll rob you on Monday and sell you insurance on Tuesday.","Krillians do the jobs nobody else will. Everybody hates them. Everybody hires them."]};
+function frontierTale(){G.heard=G.heard||{};const opts=Object.keys(FRONTIER_LORE).filter(k=>!G.heard[k]&&!(G.aliens||[]).some(a=>a.key===k&&a.met));if(!opts.length)return null;
+  const k=pick(Math.random,opts);G.heard[k]=true;const line=pick(Math.random,FRONTIER_LORE[k]);addRumor(`Beyond known space: “${line}”`);return line}
+
+// =====================================================================
+// ---------- CONVERSATIONS: questions you can ask once you've hailed ----------
+// =====================================================================
+const ASK=[{k:"who",t:"Who are you?"},{k:"home",t:"Your homeworld?"},{k:"trade",t:"What do you trade?"},{k:"news",t:"Any news?"},{k:"neighbors",t:"Your neighbors?"},{k:"danger",t:"Any dangers?"}];
+const SELF={lumari:"We are the Concord. We tend what grows, wherever it grows. Even you, perhaps.",ossari:"The Exchange! Traders, brokers, matchmakers of cargo and buyer. Every voice of us is open for business.",
+  kesh:"Swarm is many. Swarm flies as one. Swarm does not explain itself twice.",vorrn:"Clan Vorrn. We build, we fight, we keep our word. Mostly in that order.",
+  skarr:"The Dominion takes what is weak. Pray we never think of you that way.",thexx:"[ a long, wet clicking that your translator refuses to render ]",
+  selenn:"We are a song the stars started. We are still finding the last verse.",drovath:"The Pact keeps order. Order keeps the Pact. Have your documents ready.",
+  quarn:"Ravagers. You know what that means.",myrr:"We are what watches. You have been watched for a long time.",krillian:"Krillians! We're the grease in the galaxy's gears. Sometimes also the sand."};
+const KRILL_ANS={home:"Home is wherever the loot is. Currently: your cargo hold.",trade:"We buy anything that isn't nailed down. And nails. We pay extra for Endurium and Vael relics.",
+  neighbors:"Everyone's our neighbor! Everyone owes us money.",danger:"The most dangerous thing out here? A Krillian with a plan. Luckily we never have one."};
+function askRow(){if(!enc||!enc.hailed||enc.fighting||enc.special||enc.trading||enc.talkOver||enc.a.key==="quiet")return "";enc.asked=enc.asked||{};
+  return `<div class="row" style="gap:4px;flex-wrap:wrap"><span class="hint" style="align-self:center">Ask:</span>${ASK.map(q=>`<button class="sm" data-ask="${q.k}" ${enc.asked[q.k]?"disabled":""}>${q.t}</button>`).join("")}</div>`}
+function ask(k){const a=enc.a,d=def(a.key),st=stanceOf(a.att),kr=a.key==="krillian";enc.asked=enc.asked||{};if(enc.asked[k])return;enc.asked[k]=true;gainXP("com",3);gainXP("cha",2);
+  const say=t=>encLine(`<span style="color:var(--cyan)">You: ${esc(ASK.find(q=>q.k===k).t)}</span><br>“${t}”`);
+  if(st==="Wary"&&!kr&&Math.random()<.3-eff("cha")/500){changeAtt(a,-3);enc.refused=(enc.refused||0)+1;say(pick(Math.random,["Enough questions.","Why do you want to know?","That is not your concern, outsider."]));
+    if(enc.refused>=2){enc.talkOver=true;encLine("They close the channel to further questions.")}renderEnc();return}
+  if(kr&&k!=="who"&&k!=="news"){say(KRILL_ANS[k]);if(k==="trade"){G.krill.wantsKnown=true}renderEnc();return}
+  if(k==="who"){say(SELF[a.key]||`We are the ${d.name}. ${pick(Math.random,d.hi)}`)}
+  else if(k==="home"){const h=alienSys(a);if(!h)say("We have no single home.");else if(a.known)say(`You already know it: ${h.name}.`);
+    else if(st==="Friendly"||st==="Neutral"||Math.random()<.3){a.known=true;say(`Our home is ${h.name}. Come visit, if you come in peace.`);addRumor(`The ${d.name} told you their homeworld is ${h.name} (${fmt(h.x)}, ${fmt(-h.y)}).`)}
+    else say("We don't share that with strangers.")}
+  else if(k==="trade"){a.wantsKnown=true;const sp=specialtyOf(a.key);say(`We pay well for ${wantText(a.key)}.${sp?` And no one builds better ${UPG[sp].name.toLowerCase()} than we do. We sometimes part with ${L6[sp].part}s, for the right price.`:""}`);logMsg(`The ${d.name} pay extra for ${wantText(a.key)}.`)}
+  else if(k==="news"){if(kr){say(pick(Math.random,KRILL_SAYS))}else{const n=enc.lines.length;giveRumor(a);if(enc.lines.length===n){const tale=Math.random()<.5?frontierTale():null;say(tale||pick(Math.random,["Nothing worth repeating.","Quiet lately. Too quiet, some say.","Only the usual: tolls, raids, and rumors of rumors."]))}}}
+  else if(k==="neighbors"){const others=(G.aliens||[]).filter(b=>b!==a&&(b.met||b.known)).sort(()=>Math.random()-.5).slice(0,2);
+    if(!others.length)say("We keep to ourselves. You're the first neighbor who's come calling.");
+    else say(others.map(b=>{learnRel(a.key,b.key);const v=relBetween(a.key,b.key);return v<=-40?`The ${def(b.key).name}? We are at war with them.`:v<0?`We don't trust the ${def(b.key).name}.`:v<40?`The ${def(b.key).name} keep to their space and we keep to ours.`:`The ${def(b.key).name} are our friends.`}).join(" "));renderContacts()}
+  else if(k==="danger"){const me=here(),foe=(G.aliens||[]).filter(b=>b!==a&&stanceOf(b.att)==="Hostile").map(b=>({b,h:alienSys(b)})).filter(x=>x.h).sort((x,y)=>Math.hypot(x.h.x-me.x,x.h.y-me.y)-Math.hypot(y.h.x-me.x,y.h.y-me.y))[0];
+    if(foe&&Math.hypot(foe.h.x-me.x,foe.h.y-me.y)<160){foe.b.known=true;say(`Keep clear of the ${def(foe.b.key).name}. Their home is ${foe.h.name}, and they don't welcome visitors.`);addRumor(`The ${d.name} warned that the hostile ${def(foe.b.key).name} live at ${foe.h.name} (${fmt(foe.h.x)}, ${fmt(-foe.h.y)}).`)}
+    else if(Math.hypot(me.x,me.y)>(G.radius||130)-100)say("Krillians raid out this far. If they come for you, offer them credits. They always take credits.");
+    else say(pick(Math.random,["Nothing worse than you, so far.","Pirates, now and then. Keep your shields charged.","The dark between the stars. Same as always."]))}
+  if(st==="Friendly"||st==="Neutral")changeAtt(a,1);
+  renderEnc()}
+
+// =====================================================================
+// ---------- SURRENDER, BOARDING, AND SELLING A CAPTURED SHIP ----------
+// =====================================================================
+const PRIZE_KIND=["cutter","corvette","frigate","freighter","gunship","courier"];
+function offerSurrender(){const t=T();enc.surrender={t};enc.surrenderAsked=true;enc.fighting=false;t.cd=99;if(t.ld){t.ld.armed=false;t.ld.shieldsUp=false}
+  encLine(`<b style="color:var(--amber)">The ${esc(shipName(t))} ship powers down its weapons and signals surrender.</b>`);renderEnc();renderCaptain()}
+function surrenderBtns(){if(!enc||!enc.surrender||enc.surrender.done)return "";return `<button class="primary" id="eBoard">Board and take the ship</button><button id="eSpare">Let them go</button><button class="danger" id="eFinish">Finish them</button>`}
+function boardShip(){const s=enc.surrender,t=s.t,sh=ship(),a=enc.a,d=def(t.key),ld=t.ld||{};s.done=true;enc.done=true;t.gone=true;
+  const got=[];for(const [m,n] of Object.entries(ld.cargo||{})){const put=addCargo(m,Math.round(n*.9));if(put)got.push(`${put} t ${m}`)}
+  if(ld.fuel){const f=Math.min(tankCap(sh.up.tank)-sh.fuel,Math.round(ld.fuel*.6));if(f>=1){sh.fuel=Math.round((sh.fuel+f)*10)/10;got.push(`${Math.round(f)} fuel`)}}
+  if(ld.relic){sh.relics=sh.relics||[];const rl=makeRelic(rng(Date.now()),`Captured ${d.name} ship`);sh.relics.push(rl);got.push(`a relic, the ${esc(rl.name)}`)}
+  const value=Math.round((300+t.str*420+t.maxhp*2)*(.85+Math.random()*.3)/10)*10;
+  if(sh.prize){const strip=Math.round(value*.35);sh.credits+=strip;got.push(`${strip} credits of stripped parts (you're already towing a ship)`)}
+  else{sh.prize={key:t.key,name:`${d.name} ${pick(Math.random,PRIZE_KIND)}`,value};got.push(`the ship itself, under tow`)}
+  changeAtt(a,2);gainXP("wpn",10);gainXP("com",5);
+  encLine(`<b style="color:var(--green)">Your crew boards the ${esc(shipName(t))} ship.</b> Its crew is sent home in their lifepods. You take: ${got.join(", ")}.`);
+  logMsg(`Captured a ${d.name} ship.${sh.prize&&sh.prize.key===t.key?` Towing it to sell at a starbase (worth about ${sh.prize.value} credits).`:""}`);renderEnc();renderCaptain();changed()}
+function spareShip(){const s=enc.surrender,t=s.t,a=enc.a;s.done=true;enc.done=true;t.fleeing=true;changeAtt(a,6);gainXP("cha",4);
+  encLine(`You let them go. The ${esc(shipName(t))} crew hails a stunned thank-you and limps away.`);logMsg(`Spared a surrendered ${def(t.key).name} ship. They won't forget it.`);renderEnc();renderCaptain()}
+function finishShip(){const s=enc.surrender,t=s.t,a=enc.a;s.done=true;changeAtt(a,-12);encLine(`<b style="color:var(--danger)">You open fire on a ship that surrendered.</b> Word of this will spread.`);enc.fighting=true;t.hp=0;victory()}
+// a captured ship slows you down, and sells at any of your starbases
+const towing=()=>!!(G.ship&&ship().prize);
+function sellPrize(){const sh=ship();if(!sh.prize)return;const pay=Math.round(sh.prize.value*(1+eff("com")/300));sh.credits+=pay;
+  logMsg(`Sold the captured ${sh.prize.name} to the starbase yard for ${pay} credits.`);toast(`Captured ship sold: +${pay} cr`);sh.prize=null}
+
 // ---------- boot ----------
 try{const s=localStorage.getItem(KEY);if(s){G=JSON.parse(s)}}catch{}
 if(!G||!G.systems)newGalaxy("1986",60);
@@ -4861,6 +5206,10 @@ window.addEventListener("resize",resize);
 resize();fit();
 let startMode="build";try{startMode=localStorage.getItem(KEY+".mode")||"build"}catch{}
 setGameMode(startMode==="captain"?"captain":"build");
+showTitle();
+$("tCapt").onclick=()=>leaveTitle("captain");$("tBuild").onclick=()=>leaveTitle("build");
+$("tAbout").onclick=()=>openDocPanel(ABOUT,"About Starforge");$("tManual").onclick=()=>openDocPanel(MANUAL,"Captain's manual");
+$("btnTitle").onclick=()=>{if(enc||land||(port&&port.open)){toast("Finish what you're doing first");return}showTitle()};
 renderBackups();{const vt=$("verTag");if(vt)vt.textContent="v"+VERSION}
 renderSafeBackup();cloudInit();fileInit();renderUpdater();takeCarriedSave();
 $("btnAbout").onclick=()=>openDocPanel(ABOUT,"About Starforge");$("btnManual").onclick=()=>openDocPanel(MANUAL,"Captain's manual");
