@@ -6,6 +6,18 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.77
+- **More realistic people.** Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.
+- **New ways to spend credits:**
+  - Crew quarters and a med bay for your ship.
+  - Paint schemes, and your ship's name painted on the hull.
+  - Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.
+  - Funding your colonies so they grow faster.
+  - Star charts, tips and other information from bartenders and colony officials.
+  - Insurance, 25 credits a week.
+- **One set of action keys.** Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.
+- Balance improvements.
+
 ## 0.76.5
 - Saves, backups and updates share one title screen link.
 

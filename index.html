@@ -198,7 +198,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <div id="enc" class="captainOnly" hidden role="dialog" aria-live="polite"></div>
     <div id="docPanel" hidden></div>
     <div class="hud">
-      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.76.5</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
+      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.77</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
       <div class="seg" role="group" aria-label="Mode"><button id="gmBuild" class="on">Builder</button><button id="gmCapt">Captain</button></div>
       <button id="modeSelect" class="on builderOnly" title="Click a star to inspect it">Select</button>
       <button id="modePlace" class="builderOnly" title="Click empty space to place a new system">Place system</button>
@@ -289,7 +289,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
 </div>
 <div id="port" hidden role="dialog" aria-label="Spaceport">
   <canvas id="portCv"></canvas>
-  <div class="portTop"><div><h2 id="portName">Spaceport</h2><p class="hint" id="portHint">Walk with ← → or A / D. Press ↑, Enter or Space at a door. Or just click a door.</p></div><button id="portLeave">Back to ship</button></div>
+  <div class="portTop"><div><h2 id="portName">Spaceport</h2><p class="hint" id="portHint">Walk with ← → or A / D. Press ↑ or Z at a door. Or just click a door.</p></div><button id="portLeave">Back to ship</button></div>
   <div class="pad"><button id="padL" aria-label="Walk left">◀</button><button id="padE">Enter</button><button id="padR" aria-label="Walk right">▶</button></div>
   <div id="room" hidden><div class="roomHead"><h3 id="roomTitle">Room</h3><button id="roomClose">Back to corridor</button></div><div id="roomBody"></div></div>
 </div>
@@ -303,7 +303,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <div class="landBtns"><button id="landAct" class="primary" disabled>Nothing here</button><button id="landStun" hidden>Stun (Q)</button><button id="landFire" class="danger" hidden>Fire (F)</button></div>
     <div class="landPad2"><span></span><button id="lpU" aria-label="Drive up">▲</button><span></span><button id="lpL" aria-label="Drive left">◀</button><button id="lpD" aria-label="Drive down">▼</button><button id="lpR" aria-label="Drive right">▶</button></div>
     <div class="row"><button id="landHome">Return to lander</button><button id="landLift" class="primary">Lift off</button></div>
-    <p class="hint">Drive with the arrow keys or WASD, or click the ground. E mines, explores or loads. Q stuns and F fires. Things show up inside your sensor ring. Bring cargo back to the lander to unload.</p>
+    <p class="hint">Drive with the arrow keys or WASD, or click the ground. Z or , mines, explores or loads. X or . stuns, and C or / fires a lethal shot. Things show up inside your sensor ring. Bring cargo back to the lander to unload.</p>
   </aside>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -648,7 +648,7 @@ function gainL6Part(key,how){const k=specialtyOf(key);if(!k)return "";const sh=s
   logMsg(`${how} a ${part} (${n} of ${L6_NEED}).${n>=L6_NEED?` With your ${UPG[k].name.toLowerCase()} at level 5 and an engineer of skill ${L6_ENG}+, the shipyard can fit level 6.`:""}`);toast(`${part} acquired`);return part}
 // level pips: five boxes, plus a gold sixth once you have it
 const pipStr=(l,m=5)=>"■".repeat(Math.min(l,m))+"□".repeat(Math.max(0,m-l))+(l>m?`<b style="color:#ffd36b;font-weight:400">${"■".repeat(l-m)}</b>`:"");
-const upgCost=(k,l)=>Math.round(UPG[k].base*l*l/2*priceMult()/10)*10; // price for reaching level l
+const upgCost=(k,l)=>Math.round(UPG[k].base*l*l/2*priceMult()*(G&&G.ship&&typeof sbHas==="function"&&sbHas(here(),"yard")?.9:1)/10)*10; // price for reaching level l
 
 function newCrewMember(r,species){
   species=species||pick(r,Object.keys(SPECIES));
@@ -729,7 +729,7 @@ function eff(k){ // effective skill, after injuries
 const staffed=k=>!!worker(k);
 function priceMult(){return 1-eff("com")/400} // up to 25% off
 function fuelPerLy(){return .6*(1-ship().up.engine*.1)*(1-eff("nav")/200)*(ship().vaelDrive?.7:1)*(inUnknown()&&!ship().quietWard?1.4:1)*(towing()?1.3:1)}
-function fuelPrice(){const s=here();return Math.round((s&&s.home?6:9)*priceMult()*10)/10}
+function fuelPrice(){const s=here();return Math.round((s&&s.home?6:9)*priceMult()*(sbHas(s,"fuel")?.8:1)*10)/10}
 function addRumor(m){const sh=ship();sh.rumors=sh.rumors||[];sh.rumors.unshift(`Day ${sh.day||0}: ${m}`);sh.rumors=sh.rumors.slice(0,40)}
 // turn system names and coordinates in a line of text into links to the star map
 let _lnk={n:-1,re:null};
@@ -762,7 +762,7 @@ function gainXP(role,amt){
   const c=worker(role);if(!c)return;
   const sp=SPECIES[c.species];if(!sp.learn)return;
   const lead=role==="cha"?1:1+eff("cha")/150; // a charismatic captain makes everyone learn faster
-  c.xp[role]=(c.xp[role]||0)+amt*sp.learn*lead;
+  c.xp[role]=(c.xp[role]||0)+amt*sp.learn*lead*(1+qLvl()*.05);
   while(c.xp[role]>=20&&c.skills[role]<sp.cap[role]){c.xp[role]-=20;c.skills[role]++;
     if(c.skills[role]%10===0)logMsg(`${c.name}'s ${roleName(role)} rose to ${c.skills[role]} from experience.`)}
   if(c.skills[role]>=sp.cap[role])c.xp[role]=0;
@@ -814,8 +814,8 @@ function arrive(s,d){
   }else logMsg(`Arrived at ${s.name} after ${Math.round(d)} light-years.`);
   // engineer patches the hull, doctor treats the crew
   const fix=Math.round(eff("eng")/20);if(fix)sh.hull=Math.min(hullMax(sh.up.armor),sh.hull+fix);
-  const heal=Math.round(eff("med")/6);
-  if(heal)sh.crew.forEach(c=>{if(c.health<c.maxhp){c.health=Math.min(c.maxhp,c.health+heal);gainXP("med",4)}});
+  const heal=Math.round(eff("med")/6*(1+mLvl()*.5)),qh=qLvl()*2;
+  if(heal||qh)sh.crew.forEach(c=>{if(c.health>0&&c.health<c.maxhp){c.health=Math.min(c.maxhp,c.health+heal+qh);if(heal)gainXP("med",4)}});
   if(!s.unknown&&Math.hypot(s.x,s.y)>G.radius-30)expandFrontier();
   const sg=siegeHere(s);
   if(sg){const a=G.aliens.find(x=>x.key===sg.o.siege.by);if(a){startEncounter(a,false);enc.fighting=true;enc.noTrade=true;enc.defend={sys:s.id,i:s.planets.indexOf(sg.p)};
@@ -869,7 +869,7 @@ function reviewReports(){
 function growColonies(){
   const day=ship().day||0;
   for(const sys of G.systems)for(const p of sys.planets){
-    const c=p.colony;if(!c)continue;const age=day-c.founded;
+    const c=p.colony;if(!c)continue;const age=day-c.founded+colBoost(c);
     if(c.stage===1&&age>=30){c.stage=2;logMsg(`${p.name} has grown from a settlement into a thriving colony.`)}
     if(c.stage===2&&age>=90){c.stage=3;
       if(!sys.starbase){sys.starbase=true;sys.scanned=2;logMsg(`${p.name} colony has built a new starbase in the ${sys.name} system. The frontier grows!`);toast("New starbase at "+sys.name)}}
@@ -1058,7 +1058,7 @@ function startEncounter(a,atHome,roaming){
 const CREW_LOOK={kesh:"Kesh",vorrn:"Vorrn",lumari:"Lumari",ossari:"Ossari"};
 function drawAlienCall(cv,a){
   const d=def(a.key),sp=CREW_LOOK[a.key]||"Alien",seed=hashStr(a.key);
-  const head={Kesh:{top:-96,span:34,cx:3},Vorrn:{top:-90,span:26,cx:3},Lumari:{top:-96,span:44,cx:1},Ossari:{top:-102,span:32,cx:3}}[sp]
+  const head={Kesh:{top:-90,span:34,cx:3},Vorrn:{top:-93,span:32,cx:3},Lumari:{top:-88,span:46,cx:1},Ossari:{top:-106,span:34,cx:3}}[sp]
     ||[{top:-58,span:34,cx:1},{top:-102,span:36,cx:2},{top:-82,span:30,cx:7}][seed%3];
   drawPortrait(cv,{sp,col:d.color,seed},head);
   const c=cv.getContext("2d"),W=cv.clientWidth,H=cv.clientHeight;
@@ -1092,7 +1092,7 @@ function openTrade(){
     goods:goodsPool.map(k=>({m:k,t:rint(r,3,14),price:Math.round(MIN_PRICE[k]*1.3*m.buy*charm)})),
     wants:wants.map(k=>({m:k,price:Math.round(MIN_PRICE[k]*1.4*m.sell*boost*(W.minerals.includes(k)?1.3:1)),wanted:W.minerals.includes(k)})),
     relicMult:(1.05+r()*.35)*m.sell*boost*(W.relics?1.35:1),done:0};
-  {const k=specialtyOf(a.key);if(k&&ship().up[k]<6&&l6Have(k)<L6_NEED&&r()<({Friendly:.85,Neutral:.55,Wary:.3}[stanceOf(a.att)]||0))enc.trade.part={k,price:Math.round(1600*m.buy*charm/10)*10,left:rint(r,1,2)}}
+  {const k=specialtyOf(a.key);if(k&&ship().up[k]===5&&l6Have(k)<L6_NEED&&r()<({Friendly:.2,Neutral:.1,Wary:.03}[stanceOf(a.att)]||0))enc.trade.part={k,price:Math.round(4000*m.buy*charm/10)*10,left:1}}
   enc.trading=true;enc.offer=false;gainXP("cha",3);gainXP("com",3);
   encLine(`The ${esc(d.name)} open their cargo manifest.`);renderEnc();
 }
@@ -1317,7 +1317,7 @@ function maybeEnterprise(sys){
 }
 // the on-screen hail: their captain, live from their bridge
 function drawHailCall(cv){
-  drawPortrait(cv,{sp:"Human",col:"#6f86b8",seed:1701,suit:"#3b4f7a"},{top:-90,span:42,cx:3});
+  drawPortrait(cv,{sp:"Human",col:"#6f86b8",seed:1701,suit:"#3b4f7a"},{top:-100,span:44,cx:3});
   const c=cv.getContext("2d"),W=cv.clientWidth,H=cv.clientHeight;
   // a hint of a bridge behind them: consoles and lit panels
   c.globalCompositeOperation="destination-over";c.fillStyle="#1c2740";c.fillRect(0,0,W,H);c.globalCompositeOperation="source-over";
@@ -1508,7 +1508,7 @@ function renderCaptain(){
     <div class="stat">Fuel ${bar("fuel",sh.fuel,tc,`${Math.round(sh.fuel*10)/10} / ${tc}`)}</div>
     <div class="stat">Hull ${bar("hull",sh.hull,hm,`${sh.hull} / ${hm}`)}</div>
     <div class="data">Day <b>${sh.day||0}</b> · Colonies founded <b>${colonyCount()}</b>${(sh.reports||[]).length?` · Reports to file <b>${sh.reports.length}</b>`:""}<br>Credits <b>${Math.round(sh.credits).toLocaleString()}</b> · Survey data <b>${Math.round(sh.data)}</b><br>
-    Range <b>${Math.floor(rangeLy())}</b> ly · <b>${(fuelPerLy()).toFixed(3)}</b> fuel per ly${sh.prize?`<br><span style="color:var(--amber)">Towing a captured ${esc(sh.prize.name)} · worth about ${sh.prize.value.toLocaleString()} cr at a starbase · jumps cost 30% more fuel</span>`:""}${krSmuggling()?`<br><span style="color:${KRILL_DEF.color}">Krillian smugglers are covering you until day ${sh.krSmuggle}</span>`:""}</div>
+    Range <b>${Math.floor(rangeLy())}</b> ly · <b>${(fuelPerLy()).toFixed(3)}</b> fuel per ly${sh.prize?`<br><span style="color:var(--amber)">Towing a captured ${esc(sh.prize.name)} · worth about ${sh.prize.value.toLocaleString()} cr at a starbase · jumps cost 30% more fuel</span>`:""}${krSmuggling()?`<br><span style="color:${KRILL_DEF.color}">Krillian smugglers are covering you until day ${sh.krSmuggle}</span>`:""}${insured()?`<br><span class="hint">Insured · next payment day ${ext().ins.next}</span>`:""}</div>
     ${stranded()?`<div class="row"><span class="hint" style="flex:1;color:var(--danger)">Not enough fuel to reach any star.</span><button id="cTow" class="danger">Call for a tow</button></div>`:""}
     ${depotsHtml()}
     <div class="data" style="font-size:16px;color:var(--dim)">${["engine","tank","cargo","sensors"].map(k=>`${UPG[k].name} <span class="pips">${pipStr(sh.up[k])}</span>`).join("<br>")}</div>`;
@@ -1561,7 +1561,7 @@ function renderCrew(el,withTitle){
 }
 function renderBase(bp,inRoom){
   const sh=ship(),s=here();
-  const tabs=[["services","Services"],["shipyard","Shipyard"],["personnel","Personnel"]];
+  const tabs=[["services","Services"],["shipyard","Shipyard"],["personnel","Personnel"]].concat(s.starbase?[["station","Station"]]:[]);
   let body="";
   if(baseTab==="services"){
     const need=Math.max(0,tankCap(sh.up.tank)-sh.fuel),fp=fuelPrice(),fcost=Math.ceil(need*fp);
@@ -1574,6 +1574,7 @@ function renderBase(bp,inRoom){
       <div class="item"><div>Refuel<div class="d">${fp} credits per unit${s.home?" (home rate)":""} · needs ${Math.round(need*10)/10}</div></div><button id="bFuel" ${need<.1||can<.1?"disabled":""}>${fcost<=sh.credits?fcost+" cr":"Buy what I can"}</button></div>
       <div class="item"><div>Repair hull<div class="d">${rp} credits per point · ${dmg} damage</div></div><button id="bRepair" ${!dmg||sh.credits<rp?"disabled":""}>${rcost} cr</button></div>
       <div class="item"><div>Medical bay<div class="d">${hurt.length?hurt.length+" injured":"Everyone is healthy"}</div></div><button id="bMed" ${!hurt.length||sh.credits<mcost?"disabled":""}>${mcost} cr</button></div>
+      ${insuranceHtml()}
     </div>`;
     else if(depotTab==="sell"){
       const rel=sh.relics||[];
@@ -1597,12 +1598,14 @@ function renderBase(bp,inRoom){
       const l6note=L6[k]&&l===5&&l6Have(k)>0?`<div class="d" style="color:#ffd36b">Level 6: ${Math.min(l6Have(k),L6_NEED)} of ${L6_NEED} ${L6[k].part}s from the ${esc(def(L6[k].sp).name)}${l6Have(k)>=L6_NEED&&!six?` · needs an engineer of skill ${L6_ENG}+ on duty (yours: ${Math.round(eff("eng"))})`:""}</div>`:"";
       return `<div class="item"><div>${u.name} <span class="pips">${pipStr(l)}</span><div class="d">Now: ${u.d(l)}${max?"":`<br>Next: ${u.d(l+1)}`}</div>${l6note}</div>
       <button data-up="${k}" ${max||sh.credits<cost?"disabled":""} ${six?'style="border-color:#ffd36b;color:#ffd36b"':""}>${max?"Maxed":(six?"Level 6 · ":"")+cost.toLocaleString()+" cr"}</button></div>`}).join("")}</div>
+      ${extrasHtml()}
       <h2 style="margin-top:6px">Rover</h2>
       <div class="shop">${Object.keys(ROVER_UPG).map(k=>{const u=ROVER_UPG[k],rov=ensureRover(),l=rov[k],max=l>=u.max,cost=max?0:rovCost(k,l+1);
         return `<div class="item"><div>${u.name} <span class="pips">${"■".repeat(l)}${"□".repeat(u.max-l)}</span><div class="d">Now: ${u.d(l)}${max?"":`<br>Next: ${u.d(l+1)}`}</div></div>
         <button data-rup="${k}" ${max||sh.credits<cost?"disabled":""}>${max?"Maxed":cost.toLocaleString()+" cr"}</button></div>`}).join("")}</div>
       <p class="hint">Your communications officer's skill lowers every price here.</p>`;
-  }else{
+  }else if(baseTab==="station"){body=stationHtml()||'<p class="hint">Nothing to improve here.</p>'}
+  else{
     body=personnelHtml();
   }
   bp.innerHTML=inRoom?body:`<div class="row" style="justify-content:space-between"><h2>${esc(s.name)} starbase</h2><button class="sm primary" data-port="1">Enter spaceport</button></div><div class="tabs">${tabs.map(([k,n])=>`<button data-tab="${k}" class="${baseTab===k?"on":""}">${n}</button>`).join("")}</div>${body}`;
@@ -1627,6 +1630,7 @@ function renderBase(bp,inRoom){
       const show=()=>{drawShipArt(art,Object.assign({},sh.up,{[k]:sh.up[k]+1}),{name:sh.name});const n=bp.querySelector(".shipArtNote");if(n)n.textContent=`Preview: ${UPG[k].name} level ${sh.up[k]+1}`};
       const hide=()=>{drawShipArt(art,sh.up,{name:sh.name});const n=bp.querySelector(".shipArtNote");if(n)n.textContent=n.dataset.note};
       it.addEventListener("mouseenter",show);it.addEventListener("mouseleave",hide);it.addEventListener("touchstart",show,{passive:true});it.addEventListener("touchend",hide)})}
+  wireExtras(bp);wireStation(bp);on("bIns",toggleInsurance);
   on("bTorps",()=>{const tp=torpPrice();const n=Math.min(torpCap(sh.up.torpedoes)-sh.torps,Math.floor(sh.credits/tp));if(n<1)return;sh.torps+=n;sh.credits-=n*tp;logMsg(`Loaded ${n} torpedo${n>1?"es":""}.`);changed()});
   bp.querySelectorAll("[data-rup]").forEach(b=>b.onclick=()=>{const k=b.dataset.rup,rov=ensureRover(),l=rov[k]+1,cost=rovCost(k,l);if(sh.credits<cost)return;sh.credits-=cost;rov[k]=l;logMsg(`Installed ${ROVER_UPG[k].name} level ${l}.`);toast(ROVER_UPG[k].name+" upgraded");changed()});
   bp.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{const k=b.dataset.up,l=sh.up[k]+1,cost=upgCost(k,l);if(sh.credits<cost)return;
@@ -1759,8 +1763,8 @@ const towBase=()=>nearestBase(here())||G.systems.find(s=>s.home);
 const distTo=b=>Math.hypot(b.x-here().x,b.y-here().y);
 const radioDays=(b=towBase())=>Math.max(1,Math.ceil(distTo(b)/8));
 const radioFuelAmt=()=>Math.max(0,Math.round((tankCap(ship().up.tank)-ship().fuel)*10)/10);
-const radioFuelCost=()=>{const b=towBase();return Math.round(radioFuelAmt()*(b.home?6:9)*priceMult()*1.6+100+distTo(b)*3)};
-const towFee=()=>400+Math.round(distTo(towBase())*5);
+const radioFuelCost=()=>{const b=towBase();return Math.round((radioFuelAmt()*(b.home?6:9)*priceMult()*1.6+100+distTo(b)*3)*(insured()?.5:1))};
+const towFee=()=>Math.round((400+Math.round(distTo(towBase())*5))*(insured()?.5:1));
 function radioHtml(){
   const sh=ship(),b=towBase(),amt=radioFuelAmt(),fc=radioFuelCost(),tf=towFee();
   return `<div class="member" style="margin-top:4px"><div class="row" style="justify-content:space-between"><h2>Radio</h2><span class="data" style="font-size:17px">Credits <b>${Math.round(sh.credits).toLocaleString()}</b></span></div>
@@ -1937,7 +1941,7 @@ function tickPort(dt){
   }
   const d=nearDoor();
   const vw=DOORS.find(x=>x.view&&Math.abs(x.x-port.x)<190);
-  $("portHint").textContent=port.room?"":d?`${d.name}: press ↑, Enter or Space to go in.`:vw?`Through the window: the ${ship().name}, berthed outside.`:"Walk with ← → or A / D. Press ↑, Enter or Space at a door. Or just click a door.";
+  $("portHint").textContent=port.room?"":d?`${d.name}: press ↑ or Z to go in.`:vw?`Through the window: the ${ship().name}, berthed outside.`:"Walk with ← → or A / D. Press ↑ or Z at a door. Or just click a door.";
 }
 function enterDoor(d){
   if(!d)return;
@@ -2018,10 +2022,10 @@ function renderRoom(){
       el.innerHTML=`<div class="data">Station <b>${esc(s.name)}</b>${s.home?" · Home base":""} · Day <b>${sh.day||0}</b><br>Captain of the <b>${esc(sh.name)}</b> · ${Math.round(sh.credits).toLocaleString()} credits</div>
         <h2>Notices</h2><div class="log" style="max-height:none">${sh.log.slice(0,12).map(m=>`<div>${linkify(m)}</div>`).join("")}</div>
         <h2>Alien relations</h2>${known.length?known.map(a=>{const d=def(a.key),st=stanceOf(a.att);return `<div class="contact"><i style="background:${d.color}"></i><div>${esc(d.name)}</div><span class="att" style="color:${stanceColor(st)}">${st}</span></div>`}).join(""):'<p class="hint">No species on file yet.</p>'}
-        <h2>Starbase network</h2><p class="hint">${G.systems.filter(x=>x.starbase).map(x=>esc(x.name)).join(" · ")}</p>`;break}
+        <h2>Starbase network</h2><p class="hint">${G.systems.filter(x=>x.starbase).map(x=>esc(x.name)).join(" · ")}</p>${stationHtml()}`;wireStation(el);break}
     case "lounge":case "cantina":el.innerHTML=loungeHtml();wireLounge(el);break;
     case "ctrade":el.innerHTML=tradePostHtml();wireTradePost(el);break;
-    case "chall":el.innerHTML=colonyHallHtml();break;
+    case "chall":el.innerHTML=colonyHallHtml();el.querySelectorAll("[data-fund]").forEach(b=>b.onclick=()=>fundColony(+b.dataset.fund));el.querySelectorAll("[data-info]").forEach(b=>b.onclick=()=>buyInfo(port.colony,b.dataset.info));break;
     case "obs":{
       el.innerHTML=`<canvas id="obsCv" style="width:100%;aspect-ratio:16/7;max-width:100%;display:block" aria-label="Your ship seen from the observation deck"></canvas>
         <p class="hint">The <b style="color:var(--text);font-weight:600">${esc(sh.name)}</b>, berthed at ${esc(s.name)} station. Hull ${sh.hull}/${hullMax(sh.up.armor)} · fuel ${Math.round(sh.fuel)}/${tankCap(sh.up.tank)}.</p>`;
@@ -2032,7 +2036,7 @@ function renderRoom(){
       el.innerHTML=`<p class="hint">Recommend habitable worlds from orbit (after a full scan). The office reviews your reports every time you dock. Prime worlds pay well; wasted surveys are fined.</p>
         ${pending?`<p class="hint" style="color:var(--amber)">${pending} report${pending>1?"s":""} waiting. They'll be reviewed next time you dock.</p>`:""}
         <h2>Colonies · ${cols.length}</h2>
-        ${cols.length?`<div class="shop">${cols.map(([x,p])=>{const age=(sh.day||0)-p.colony.founded;const next=p.colony.stage===1?`grows into a colony in ${Math.max(0,30-age)} days`:p.colony.stage===2?`builds a starbase in ${Math.max(0,90-age)} days`:"fully established";
+        ${cols.length?`<div class="shop">${cols.map(([x,p])=>{const age=(sh.day||0)-p.colony.founded+colBoost(p.colony);const next=p.colony.stage===1?`grows into a colony in ${Math.max(0,30-age)} days`:p.colony.stage===2?`builds a starbase in ${Math.max(0,90-age)} days`:"fully established";
           return `<div class="item"><div>${esc(p.name)} <span class="tag home">${COLONY_STAGES[p.colony.stage]}</span><div class="d">Habitability ${habitability(p)} · founded day ${p.colony.founded} · ${next}</div></div><div></div></div>`}).join("")}</div>`:'<p class="hint">No colonies yet. Go find a Prime world.</p>'}`;break}
   }
 }
@@ -2231,7 +2235,7 @@ window.addEventListener("keydown",e=>{
   if(port.room)return;
   if(k==="ArrowLeft"||k==="a"||k==="A"){port.keys.l=true;e.preventDefault()}
   if(k==="ArrowRight"||k==="d"||k==="D"){port.keys.r=true;e.preventDefault()}
-  if(k==="ArrowUp"||k==="w"||k==="W"||k==="Enter"||k===" "){e.preventDefault();enterDoor(nearDoor())}
+  if(k==="ArrowUp"||k==="w"||k==="W"||k==="z"||k==="Z"||k===","){e.preventDefault();enterDoor(nearDoor())}
 });
 window.addEventListener("keyup",e=>{const k=e.key;if(k==="ArrowLeft"||k==="a"||k==="A")port.keys.l=false;if(k==="ArrowRight"||k==="d"||k==="D")port.keys.r=false});
 const hold=(id,key)=>{const b=$(id);const on=e=>{e.preventDefault();port.keys[key]=true},off=()=>port.keys[key]=false;
@@ -2272,7 +2276,8 @@ function drawShipArt(cv,up,opts={}){
   const cx=340,cy=118;
   const L=300+up.armor*16,hullH=42+up.armor*3.5;
   const X0=cx-L/2,X1=cx+L/2,top=cy-hullH/2,bot=cy+hullH/2;
-  const base=["#9aa4b8","#a0aabd","#98a1b2","#8a93a3","#7c8595","#6e7686","#5d5f6b"][up.armor];
+  const PT=(typeof PAINTS!=="undefined"&&PAINTS[opts.paint!==undefined?opts.paint:(G&&G.ship&&G.ship.ext&&G.ship.ext.paint)||"std"])||{};
+  const base=PT.base?shade(PT.base,-up.armor*.04):["#9aa4b8","#a0aabd","#98a1b2","#8a93a3","#7c8595","#6e7686","#5d5f6b"][up.armor];
   const six=k=>up[k]>=6,ion=opts.ion!==undefined?opts.ion:!!(G&&G.ship&&G.ship.ionCannon);
   const R=rng(17); // fixed greeble layout so the ship doesn't flicker
 
@@ -2339,9 +2344,12 @@ function drawShipArt(cv,up,opts={}){
   if(six("armor")){const bg2=c.createLinearGradient(0,cy-6,0,cy+8);bg2.addColorStop(0,"#7a5a36");bg2.addColorStop(.5,"#b8894f");bg2.addColorStop(1,"#5a3f22");c.fillStyle=bg2;c.fillRect(X0+16,cy+hullH*.02,L-120,7);
     c.fillStyle="rgba(0,0,0,.35)";for(let x=X0+30;x<X1-110;x+=18)c.fillRect(x,cy+hullH*.02,1.5,7)}
   // hull stripe + registry
-  c.fillStyle="rgba(92,225,230,.85)";c.fillRect(X0+40,cy-hullH*.18+2,L-180,2);
-  c.fillStyle="rgba(200,60,60,.75)";c.fillRect(X0+40,cy-hullH*.18+5,L-180,1);
-  if(opts.name){c.font="bold 9px system-ui,sans-serif";c.fillStyle="rgba(20,25,40,.55)";c.textAlign="left";c.fillText(opts.name.toUpperCase(),X0+50,cy+hullH*.08)}
+  c.fillStyle=PT.s1||"rgba(92,225,230,.85)";c.fillRect(X0+40,cy-hullH*.18+2,L-180,2);
+  c.fillStyle=PT.s2||"rgba(200,60,60,.75)";c.fillRect(X0+40,cy-hullH*.18+5,L-180,1);
+  if(PT.gold){c.fillStyle="rgba(224,184,74,.7)";c.fillRect(X0+30,bot-6,L-150,1.5)}
+  const bigName=opts.bigName!==undefined?opts.bigName:!!(G&&G.ship&&G.ship.ext&&G.ship.ext.bigName);
+  if(opts.name&&bigName){c.font="bold 15px system-ui,sans-serif";c.textAlign="left";c.lineWidth=3;c.strokeStyle="rgba(10,14,24,.55)";c.strokeText(opts.name.toUpperCase(),X0+60,cy+hullH*.14);c.fillStyle=PT.gold?"#f0cf6a":"rgba(246,248,255,.92)";c.fillText(opts.name.toUpperCase(),X0+60,cy+hullH*.14);c.lineWidth=1}
+  else if(opts.name){c.font="bold 9px system-ui,sans-serif";c.fillStyle="rgba(20,25,40,.55)";c.textAlign="left";c.fillText(opts.name.toUpperCase(),X0+50,cy+hullH*.08)}
   // lit portholes along the midsection
   for(let x=X0+120;x<X1-110;x+=13){c.fillStyle=R()<.8?"rgba(255,226,150,.95)":"rgba(40,50,70,.9)";c.beginPath();c.arc(x,cy+hullH*.32,1.6,0,Math.PI*2);c.fill()}
   // vents & hatches
@@ -2440,7 +2448,7 @@ function takeGroup(g,n){ // remove n tons of a group, cheapest minerals first
   for(const m of list){const t=Math.min(n,sh.cargo[m]);sh.cargo[m]-=t;n-=t;if(!sh.cargo[m])delete sh.cargo[m];if(!n)break}
 }
 function addCargo(m,n){const sh=ship();const room=cargoCap()-cargoUsed();const t=Math.max(0,Math.min(n,room));if(t)sh.cargo[m]=(sh.cargo[m]||0)+t;return t}
-function passDay(n){const sh=ship();sh.day=(sh.day||0)+n;growColonies();depotTick(n);distressTick(n);crewTick(n);krillTick()}
+function passDay(n){const sh=ship();sh.day=(sh.day||0)+n;growColonies();depotTick(n);distressTick(n);crewTick(n);krillTick();insuranceTick()}
 
 function regenSkim(p){const day=(G.ship&&G.ship.day)||0;if(!p.mined)return;p.minedDay??=day;const back=Math.floor((day-p.minedDay)/20);if(back>0){p.mined=Math.max(0,p.mined-back);p.minedDay=day}}
 function canMine(s,p){return !p.native&&!p.colony&&(p.mined||0)<MAX_MINES}
@@ -2596,7 +2604,8 @@ const SKIN=["#f1c7a3","#e0ac84","#c68a62","#9c6644","#6f4a33","#f6d3b8"];
 const HAIR=["#2b1d14","#5a3a22","#a0672f","#d9b45a","#1a1a1a","#8a8a8a","#b23a2b"];
 const UNIFORM=["#3d6fa8","#7a4ea3","#3f8a6a","#a8553d","#4b5d7a","#8a7a3d"];
 
-function drawBeing(c,b,ph,walking){
+// the original, simpler figures (kept for reference)
+function drawBeingClassic(c,b,ph,walking){
   const r=rng(b.seed||1),sw=walking?Math.sin(ph):0,bob=walking?Math.abs(Math.cos(ph))*1.5:0;
   c.save();c.translate(0,-bob);
   const sp=b.sp;
@@ -2716,12 +2725,311 @@ function drawBeing(c,b,ph,walking){
   }
   c.restore();
 }
+// =====================================================================
+// ---------- PEOPLE, DRAWN MORE REALISTICALLY (0.77) ----------
+// Same coordinate system as drawBeing: feet at y=0, facing +x, about 92 units tall.
+// =====================================================================
+const EYE_C=["#4a6fa5","#5b3a1f","#3d7a4a","#7a5a2a","#2b2b2b","#6b8aa0"];
+function tap(c,len,w0,w1,col,bulge){ // a tapered limb segment hanging from (0,0) down +y
+  const b=bulge||0;c.fillStyle=roundG(c,-w0/2-b,w0/2+b,col);c.beginPath();
+  c.moveTo(-w0/2,0);c.quadraticCurveTo(-w0/2-b,len*.4,-w1/2,len);c.lineTo(w1/2,len);c.quadraticCurveTo(w0/2+b*1.2,len*.38,w0/2,0);c.closePath();c.fill()}
+function joint(c,r,col){ell(c,0,0,r,r,col)}
+function sheen(c,x,y,rx,ry,a){const g=c.createRadialGradient(x,y,0,x,y,Math.max(rx,ry));g.addColorStop(0,`rgba(255,255,255,${a})`);g.addColorStop(1,"rgba(255,255,255,0)");c.fillStyle=g;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill()}
+function strokeC(c,col,w,fn){c.strokeStyle=col;c.lineWidth=w;c.lineCap="round";c.beginPath();fn();c.stroke();c.lineWidth=1;c.lineCap="butt"}
+
+function drawBeing(c,b,ph,walking){
+  const r=rng(b.seed||1),sw=walking?Math.sin(ph):0,bob=walking?Math.abs(Math.cos(ph))*1.4:0;
+  c.save();c.translate(0,-bob);const sp=b.sp;
+  if(sp==="Human"||sp==="Synth")human2(c,b,r,ph,walking);
+  else if(sp==="Kesh")kesh2(c,b,r,ph,sw);
+  else if(sp==="Vorrn")vorrn2(c,b,r,ph,sw);
+  else if(sp==="Lumari")lumari2(c,b,r,ph,sw);
+  else if(sp==="Ossari")ossari2(c,b,r,ph,sw);
+  else alien2(c,b,r,ph,sw);
+  c.restore()}
+
+function human2(c,b,r,ph,walking){
+  const synth=b.sp==="Synth";
+  const skin=synth?"#c9d0dc":SKIN[Math.floor(r()*SKIN.length)];
+  const suit=b.suit||(b.player?"#2a8fa6":synth?"#8d96a8":UNIFORM[Math.floor(r()*UNIFORM.length)]);
+  const pants=b.player?"#1d3946":synth?"#6b7486":shade(suit,-.5);
+  const hairC=HAIR[Math.floor(r()*HAIR.length)],style=Math.floor(r()*4),eyeC=EYE_C[Math.floor(r()*EYE_C.length)];
+  const build=.92+r()*.16,beard=!synth&&r()<.22,acc=shade(suit,.35);
+  const legA=p=>Math.sin(p)*.42,kneeA=p=>Math.max(0,-Math.cos(p))*(walking?.7:0)+.05;
+  const leg=(p,col,far)=>{c.save();c.translate(0,-45);c.rotate(legA(p));
+    tap(c,22,10.5*build,7.4,col,.9);                                     // thigh
+    c.translate(0,21);c.rotate(kneeA(p));
+    tap(c,19,7.4,5.4,shade(col,-.06),.5);                                // shin
+    c.fillStyle="rgba(0,0,0,.18)";c.fillRect(-3.7,1,7.4,1.2);            // knee crease
+    c.translate(0,18.4);c.rotate(-legA(p)-kneeA(p));
+    const bt=synth?"#4a5262":far?"#0f1218":"#1a1e27";                    // boot
+    c.fillStyle=roundG(c,-4,4,bt);c.beginPath();c.moveTo(-3.8,-6);c.lineTo(3.4,-6);c.quadraticCurveTo(4.4,-3,8.6,-2);c.quadraticCurveTo(10.6,-1.2,10,.6);c.lineTo(-4.2,.6);c.quadraticCurveTo(-4.6,-3,-3.8,-6);c.fill();
+    c.fillStyle="#06070a";c.fillRect(-4.2,-.2,14.1,1.3);c.fillStyle="rgba(255,255,255,.18)";c.fillRect(4,-3,4.2,.7);c.restore()};
+  const arm=(p,col,front)=>{c.save();c.translate(-.5,-73);c.rotate(-Math.sin(p)*.36);
+    tap(c,15.5,7.4*build,5.6,col,.9);                                    // upper arm
+    if(front){c.strokeStyle="rgba(0,0,0,.16)";c.beginPath();c.moveTo(-1.5,11);c.quadraticCurveTo(0,13,2,12);c.stroke()}
+    c.translate(0,14.6);c.rotate(-.22-Math.max(0,Math.sin(p))*.38);
+    tap(c,13,5.6,4.6,shade(col,-.04),.4);                                // forearm
+    c.fillStyle=shade(col,-.35);c.fillRect(-2.4,11.2,4.8,1.8);           // cuff
+    const hs=synth?"#c9d0dc":skin;c.fillStyle=roundG(c,-2.6,2.6,hs);c.beginPath();c.ellipse(0,15.4,2.4,3.1,0,0,Math.PI*2);c.fill(); // hand
+    ell(c,2.1,14.3,.9,1.6,shade(hs,-.12));c.restore()};                  // thumb
+  arm(ph+Math.PI,shade(suit,-.3),false);leg(ph+Math.PI,shade(pants,-.25),true);leg(ph,pants,false);
+  // torso: shoulders, chest, waist
+  const W=build;c.fillStyle=roundG(c,-11*W,11*W,suit);c.beginPath();
+  c.moveTo(-6,-78.5);c.quadraticCurveTo(-11*W,-77.5,-11*W,-71);c.lineTo(-9.6*W,-58);c.quadraticCurveTo(-9*W,-51,-8.7*W,-45);c.lineTo(8.8*W,-45);
+  c.quadraticCurveTo(9.4*W,-52,9.7*W,-59);c.quadraticCurveTo(11.2*W,-66,10.4*W,-72);c.quadraticCurveTo(9*W,-77.8,4,-79);c.closePath();c.fill();
+  // shoulder yoke and collar
+  c.fillStyle=synth?"rgba(255,255,255,.1)":shade(suit,.1);c.beginPath();c.moveTo(-10.6*W,-73);c.quadraticCurveTo(0,-76.5,10.6*W,-72.6);c.lineTo(10.4*W,-69.2);c.quadraticCurveTo(0,-72.5,-10.4*W,-69.6);c.closePath();c.fill();
+  c.fillStyle=shade(suit,-.38);c.beginPath();c.moveTo(-4.5,-79);c.quadraticCurveTo(1,-80.5,5.2,-79.2);c.lineTo(4.4,-76.4);c.quadraticCurveTo(1,-77.6,-3.6,-76.6);c.closePath();c.fill();
+  // zip, seams and cloth folds
+  c.strokeStyle="rgba(0,0,0,.28)";c.beginPath();c.moveTo(3.2,-76.5);c.lineTo(3.6,-46);c.stroke();
+  c.strokeStyle="rgba(255,255,255,.14)";c.beginPath();c.moveTo(4,-76);c.lineTo(4.4,-46.5);c.stroke();
+  c.strokeStyle="rgba(0,0,0,.14)";for(const[y,k]of[[-52,1],[-55,.7]]){c.beginPath();c.moveTo(-7*W,y);c.quadraticCurveTo(0,y+1.6*k,7*W,y-.4);c.stroke()}
+  c.fillStyle="rgba(255,255,255,.05)";c.beginPath();c.moveTo(8.6*W,-70);c.quadraticCurveTo(10*W,-62,8.8*W,-50);c.lineTo(7.6*W,-50);c.quadraticCurveTo(8.6*W,-62,7.4*W,-70);c.fill(); // rim light
+  // belt
+  c.fillStyle="#14161c";c.beginPath();c.moveTo(-8.9*W,-48);c.lineTo(9*W,-48);c.lineTo(9*W,-44.6);c.lineTo(-8.9*W,-44.6);c.fill();
+  c.fillStyle=roundG(c,-1,3.5,"#c9b16a");c.fillRect(-.8,-48,4.2,3.4);c.fillStyle="#2a2a2a";c.fillRect(.4,-47,1.8,1.4);
+  if(b.player){c.fillStyle="#ffd36b";c.fillRect(5.5,-70,3.6,1.6);c.fillRect(5.5,-67.6,3.6,1);c.fillStyle="#fff7";c.fillRect(5.5,-70,3.6,.5)}
+  if(synth){c.strokeStyle="rgba(30,35,50,.5)";for(let y=-66;y<-49;y+=4.5){c.beginPath();c.moveTo(-7.5,y);c.lineTo(7.5,y);c.stroke()}
+    const gl=c.createRadialGradient(1,-60,0,1,-60,6);gl.addColorStop(0,"#dffcff");gl.addColorStop(.4,"#5ce1e6");gl.addColorStop(1,"rgba(92,225,230,0)");c.fillStyle=gl;c.fillRect(-6,-67,14,14)}
+  // neck
+  const nk=c.createLinearGradient(-3,0,3,0);nk.addColorStop(0,shade(skin,-.35));nk.addColorStop(.6,shade(skin,-.12));nk.addColorStop(1,shade(skin,-.28));
+  c.fillStyle=nk;c.beginPath();c.moveTo(-2.2,-84);c.lineTo(3,-84);c.lineTo(3.4,-78);c.lineTo(-2.6,-78);c.fill();
+  // head, in a local frame centred on the face
+  c.save();c.translate(1.4,-88.4);c.scale(.8,.8);
+  const head=()=>{c.beginPath();c.moveTo(-7,1);c.bezierCurveTo(-7.6,-6.2,1.4,-9.8,5.5,-4.6);c.quadraticCurveTo(6.9,-2.2,6.7,0);c.lineTo(8.1,3);c.lineTo(6.8,3.9);
+    c.quadraticCurveTo(7.2,5.4,6.6,6.3);c.quadraticCurveTo(6.2,8.4,3.9,8.9);c.quadraticCurveTo(.4,9.1,-2.6,6.5);c.quadraticCurveTo(-6.6,5.5,-7,1);c.closePath()};
+  c.fillStyle=roundG(c,-7.5,8.3,skin);head();c.fill();
+  c.save();head();c.clip();
+  sheen(c,3,-4,4.5,3,.22);sheen(c,4.6,3,2.4,1.8,.14);                         // forehead and cheek light
+  const jaw=c.createLinearGradient(0,4,0,10);jaw.addColorStop(0,"rgba(0,0,0,0)");jaw.addColorStop(1,"rgba(0,0,0,.28)");c.fillStyle=jaw;c.fillRect(-8,4,17,6);
+  const back=c.createLinearGradient(-7,0,-1,0);back.addColorStop(0,"rgba(0,0,0,.3)");back.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=back;c.fillRect(-8,-10,7,20);
+  if(!synth){const bl=c.createRadialGradient(3.6,2.8,0,3.6,2.8,2.4);bl.addColorStop(0,"rgba(220,90,90,.18)");bl.addColorStop(1,"rgba(220,90,90,0)");c.fillStyle=bl;c.fillRect(0,0,8,6)}
+  c.restore();
+  if(synth){c.fillStyle="#0d1622";c.beginPath();c.moveTo(1.5,-2.6);c.lineTo(7.4,-2.2);c.lineTo(7.6,.8);c.lineTo(1.4,.6);c.closePath();c.fill();
+    const v=c.createLinearGradient(2,0,7.5,0);v.addColorStop(0,"rgba(92,225,230,.2)");v.addColorStop(1,"#9ff6ff");c.fillStyle=v;c.fillRect(2.4,-1.4,5,1);
+    c.strokeStyle="rgba(30,35,50,.45)";c.beginPath();c.moveTo(-6,2);c.quadraticCurveTo(0,3,2,8.6);c.stroke();sheen(c,0,-5,4,2,.4)}
+  else{
+    ell(c,-1.4,1.4,1.7,2.7,shade(skin,-.16));ell(c,-1.2,1.5,.8,1.6,shade(skin,-.34));      // ear
+    c.strokeStyle=shade(skin,-.3);c.lineWidth=.45;c.beginPath();c.moveTo(6.7,.2);c.quadraticCurveTo(7.4,1.8,7.9,2.9);c.stroke(); // nose ridge
+    ell(c,6.9,3.4,.5,.3,shade(skin,-.45));                                                  // nostril
+    c.fillStyle=shade(skin,-.08);c.beginPath();c.ellipse(4.3,-.5,2,1.4,0,0,Math.PI*2);c.fill(); // eye socket
+    c.fillStyle="#f4f1ea";c.beginPath();c.moveTo(3,-.5);c.quadraticCurveTo(4.6,-1.7,5.9,-.6);c.quadraticCurveTo(4.6,.3,3,-.5);c.fill(); // eye white
+    ell(c,4.8,-.6,.78,.78,eyeC);ell(c,4.9,-.6,.38,.38,"#0b0b0b");ell(c,5.1,-.85,.17,.17,"#fff");
+    c.strokeStyle=shade(skin,-.55);c.lineWidth=.45;c.beginPath();c.moveTo(2.9,-.6);c.quadraticCurveTo(4.6,-1.9,6,-.7);c.stroke(); // upper lid
+    strokeC(c,shade(hairC,-.1),.85,()=>{c.moveTo(2.8,-2.5);c.quadraticCurveTo(4.6,-3.3,6.3,-2.5)});                              // brow
+    c.fillStyle=shade(skin,-.3);c.beginPath();c.moveTo(5.4,4.9);c.quadraticCurveTo(6.4,4.4,7,5);c.quadraticCurveTo(6.2,5.4,5.4,4.9);c.fill(); // upper lip
+    c.fillStyle=shade(skin,-.18);c.beginPath();c.moveTo(5.5,5.2);c.quadraticCurveTo(6.4,6.3,6.8,5.3);c.fill();                     // lower lip
+    c.strokeStyle=shade(skin,-.5);c.lineWidth=.35;c.beginPath();c.moveTo(5.2,5.05);c.lineTo(6.9,5.1);c.stroke();c.lineWidth=1;
+    if(beard){c.fillStyle=shade(hairC,-.05);c.globalAlpha=.9;c.beginPath();c.moveTo(-2,4.5);c.quadraticCurveTo(-.5,8.5,3.9,9.2);c.quadraticCurveTo(6.6,8.8,6.9,6.6);
+      c.quadraticCurveTo(6,6.8,5.2,6);c.quadraticCurveTo(4,7.2,2,5.6);c.quadraticCurveTo(0,4,-2,4.5);c.fill();c.globalAlpha=1}
+    // hair
+    const hg=c.createLinearGradient(-6,-9,6,2);hg.addColorStop(0,shade(hairC,.15));hg.addColorStop(1,shade(hairC,-.25));c.fillStyle=hg;c.beginPath();
+    if(style===0){c.moveTo(-7.3,2);c.bezierCurveTo(-8.2,-7.3,2.2,-11,6.2,-4.2);c.quadraticCurveTo(3.2,-5.6,1.2,-4.8);c.quadraticCurveTo(-2.4,-3.6,-3.6,-.8);c.quadraticCurveTo(-4.6,1.6,-5,3.6);c.closePath()}
+    else if(style===1){c.moveTo(-7.4,3.5);c.bezierCurveTo(-8.6,-8,3,-11.4,6.6,-3.6);c.quadraticCurveTo(5,-5.4,2.4,-5.6);c.quadraticCurveTo(-.6,-5,-2,-2);c.quadraticCurveTo(-2.6,1,-2.2,4.6);c.quadraticCurveTo(-4.6,5,-7.4,3.5);c.closePath()}
+    else if(style===2){c.moveTo(-7.6,6);c.bezierCurveTo(-9,-8.2,2.6,-11.4,6.4,-4);c.quadraticCurveTo(3.4,-6,.6,-5.2);c.quadraticCurveTo(-2.6,-3.6,-3.2,0);c.quadraticCurveTo(-3.4,4,-2.6,7);c.closePath();
+      c.fill();c.beginPath();c.ellipse(-8.6,1.6,1.8,1.6,0,0,Math.PI*2);c.fill();c.beginPath();c.moveTo(-9.4,2.4);c.quadraticCurveTo(-11.2,8,-9.6,13);c.quadraticCurveTo(-8.2,8,-8,2.6);c.closePath()} // ponytail
+    else{c.moveTo(-7,1);c.bezierCurveTo(-7.8,-6.8,1.6,-10,5.6,-4.6);c.quadraticCurveTo(2,-5.6,-1,-4.2);c.quadraticCurveTo(-4,-2.6,-4.8,.8);c.closePath()}
+    c.fill();
+    c.strokeStyle=shade(hairC,.35);c.globalAlpha=.35;c.lineWidth=.4;for(let i=0;i<5;i++){c.beginPath();c.moveTo(-5.6+i*1.4,-1.5-i*.6);c.quadraticCurveTo(-3+i*1.6,-7.5+i*.3,2+i*1.1,-6.6+i*.5);c.stroke()}
+    c.globalAlpha=1;c.lineWidth=1;
+  }
+  c.restore();
+  arm(ph,suit,true);
+}
+
+function kesh2(c,b,r,ph,sw){
+  const ch=b.col||"#6f8fd9",dk=shade(ch,-.45);
+  // folded wings behind
+  c.save();c.globalAlpha=.32;const wg=c.createLinearGradient(-26,-70,0,-40);wg.addColorStop(0,"#e8f4ff");wg.addColorStop(1,"#9db4ff");c.fillStyle=wg;
+  c.beginPath();c.ellipse(-11,-55,17,5,-.55,0,Math.PI*2);c.fill();c.globalAlpha=.5;c.strokeStyle="#cfe2ff";c.lineWidth=.5;
+  for(const k of [-3,0,3]){c.beginPath();c.moveTo(-2,-62);c.quadraticCurveTo(-12,-58+k,-25,-46+k);c.stroke()}c.restore();
+  // jointed legs: thigh angles forward, shin back down to a claw foot
+  const leg=(p,col)=>{c.save();c.translate(0,-36);c.rotate(Math.sin(p)*.38-.35);tap(c,17,4.6,3.4,col);c.translate(0,16.4);joint(c,2.2,shade(col,.1));
+    c.rotate(.7-Math.max(0,-Math.cos(p))*.3);tap(c,20,3.4,2.2,shade(col,-.08));c.translate(0,19.6);c.rotate(-.35);
+    c.fillStyle=dk;c.beginPath();c.moveTo(-1.5,0);c.lineTo(5,1.2);c.lineTo(-1,1.8);c.closePath();c.fill();c.restore()};
+  leg(ph+Math.PI,shade(ch,-.32));
+  // abdomen with segment bands and a glossy highlight
+  c.save();c.translate(-12,-41);c.rotate(.12);const ab=c.createRadialGradient(-3,-4,1,0,0,14);ab.addColorStop(0,shade(ch,.25));ab.addColorStop(.7,shade(ch,-.15));ab.addColorStop(1,dk);
+  c.fillStyle=ab;c.beginPath();c.ellipse(0,0,13,8.4,0,0,Math.PI*2);c.fill();c.save();c.clip();c.strokeStyle="rgba(0,0,0,.35)";c.lineWidth=1.2;
+  for(let i=-2;i<=2;i++){c.beginPath();c.ellipse(i*4.6,0,2.4,9,0,-Math.PI/2,Math.PI/2);c.stroke()}c.restore();sheen(c,-2,-4.5,6,2.2,.35);c.restore();
+  // thorax plates
+  const th=c.createLinearGradient(-7,0,8,0);th.addColorStop(0,dk);th.addColorStop(.4,shade(ch,.2));th.addColorStop(1,shade(ch,-.35));c.fillStyle=th;
+  c.beginPath();c.ellipse(0,-51,7.4,13.5,0,0,Math.PI*2);c.fill();c.strokeStyle="rgba(0,0,0,.3)";for(const y of [-56,-49,-42]){c.beginPath();c.moveTo(-6,y);c.quadraticCurveTo(0,y+2,6.4,y);c.stroke()}
+  sheen(c,2.5,-57,3,5,.3);
+  leg(ph,ch);
+  // two pairs of jointed arms with pincers
+  const arm=(x,y,a,col)=>{c.save();c.translate(x,y);c.rotate(a);tap(c,11,2.8,2.1,col);c.translate(0,10.6);joint(c,1.5,shade(col,.15));c.rotate(-.9);tap(c,10,2.1,1.5,col);
+    c.translate(0,9.6);c.strokeStyle=dk;c.lineWidth=.9;c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(2,1.5,1.5,3.5);c.moveTo(0,0);c.quadraticCurveTo(-1.6,2,.2,3.6);c.stroke();c.lineWidth=1;c.restore()};
+  arm(3,-56,-.25-sw*.35,shade(ch,-.22));arm(3,-49,.25+sw*.35,shade(ch,-.22));
+  // head: angular plates, faceted compound eye, mandibles
+  c.fillStyle=roundG(c,-6,10,ch);c.beginPath();c.moveTo(-5,-62);c.lineTo(9.5,-65.5);c.lineTo(6.2,-75);c.quadraticCurveTo(0,-77.5,-5,-74);c.closePath();c.fill();
+  c.fillStyle=dk;c.beginPath();c.moveTo(-5,-62);c.lineTo(9.5,-65.5);c.lineTo(8.5,-63.5);c.lineTo(-4,-61);c.fill();
+  c.save();c.beginPath();c.ellipse(4.4,-70,4.7,4.2,.2,0,Math.PI*2);c.clip();
+  const ey=c.createRadialGradient(5,-71.5,0,4.4,-70,5.2);ey.addColorStop(0,"#fff2a8");ey.addColorStop(.45,"#e0841f");ey.addColorStop(1,"#3a1a05");c.fillStyle=ey;c.fillRect(-1,-76,11,12);
+  c.fillStyle="rgba(0,0,0,.28)";for(let y=-75;y<-65;y+=1.3)for(let x=-.5;x<9.5;x+=1.5)c.fillRect(x+((y*10)%3?0:.7),y,.5,.5);
+  sheen(c,5.6,-72.2,1.8,1.2,.7);c.restore();
+  strokeC(c,dk,1,()=>{c.moveTo(8.6,-64.6);c.quadraticCurveTo(11.6,-62.6,10,-60.4);c.moveTo(7.6,-64);c.quadraticCurveTo(9.6,-61,8,-59.6)});
+  // segmented antennae
+  c.strokeStyle=shade(ch,-.3);c.lineWidth=1.2;c.beginPath();c.moveTo(1,-75.5);c.quadraticCurveTo(5,-89,13,-91);c.moveTo(-2,-75.5);c.quadraticCurveTo(-1,-91,5,-95);c.stroke();c.lineWidth=1;
+  ell(c,13,-91,1.3,1.3,shade(ch,.3));ell(c,5,-95,1.3,1.3,shade(ch,.3));
+}
+
+function vorrn2(c,b,r,ph,sw){
+  const sk=b.col||"#c4794a",ar="#5a5f6b",arD=shade(ar,-.4);
+  const leg=(p,col,far)=>{c.save();c.translate(0,-32);c.rotate(Math.sin(p)*.3);tap(c,16,13,11,col,1.2);c.translate(0,15);
+    c.fillStyle=roundG(c,-6,6,far?arD:ar);c.beginPath();c.roundRect?c.roundRect(-6,-3,12,7,2):c.rect(-6,-3,12,7);c.fill();     // knee plate
+    c.rotate(Math.max(0,-Math.cos(p))*.3);tap(c,15,11,10,shade(col,-.06),.6);c.translate(0,14);c.rotate(-Math.sin(p)*.3);
+    c.fillStyle=roundG(c,-7,9,far?"#20222a":"#2c2f38");c.beginPath();c.moveTo(-6.5,-4);c.lineTo(5,-4);c.quadraticCurveTo(10,-3,10,1.5);c.lineTo(-7,1.5);c.closePath();c.fill();c.restore()};
+  leg(ph+Math.PI,shade(sk,-.35),true);
+  const arm=(x,p,col,front)=>{c.save();c.translate(x,-67);c.rotate(-Math.sin(p)*.3);tap(c,16,12,10,col,2.2);                 // big upper arm
+    c.fillStyle=roundG(c,-7,7,front?ar:arD);c.beginPath();c.ellipse(0,1,7.4,5.4,0,Math.PI,0);c.fill();                        // pauldron
+    c.translate(0,15);c.rotate(-.18);tap(c,14,10,8.5,shade(col,-.05),.8);
+    c.fillStyle=roundG(c,-5,5,front?ar:arD);c.fillRect(-4.6,6,9.2,7);c.fillStyle="rgba(255,255,255,.15)";c.fillRect(-4.6,6,9.2,1);  // gauntlet
+    ell(c,0,16,4.6,4,roundG(c,-4.6,4.6,shade(col,-.1)));c.restore()};
+  arm(-15,ph+Math.PI,shade(sk,-.3),false);
+  leg(ph,sk,false);
+  // armored torso with bevelled plates and rivets
+  c.fillStyle=roundG(c,-20,20,ar);c.beginPath();c.moveTo(-19,-71);c.quadraticCurveTo(0,-75,19,-71);c.lineTo(15,-29);c.lineTo(-15,-29);c.closePath();c.fill();
+  c.fillStyle="rgba(255,255,255,.16)";c.beginPath();c.moveTo(-17,-69);c.quadraticCurveTo(0,-73,17,-69);c.lineTo(16.6,-66.8);c.quadraticCurveTo(0,-70.6,-16.6,-66.8);c.fill();
+  for(const y of [-58,-45]){c.fillStyle="rgba(0,0,0,.35)";c.fillRect(-16.5+(y+58)*.08,y,33-(y+58)*.16,2);c.fillStyle="rgba(255,255,255,.12)";c.fillRect(-16.5,y+2,33,.8)}
+  c.fillStyle="#9aa0ad";for(const[x,y]of[[-14,-64],[14,-64],[-13,-52],[13,-52],[-12,-39],[12,-39]]){ell(c,x,y,.9,.9,"#9aa0ad");ell(c,x-.3,y-.3,.35,.35,"#fff")}
+  c.fillStyle="#3a2a1c";c.fillRect(-15.5,-33,31,4);c.fillStyle=roundG(c,-4,4,"#6b4a2a");c.fillRect(6,-34.5,6,6);c.fillRect(-12,-34.5,6,6);  // belt and pouches
+  sheen(c,6,-62,6,8,.12);
+  // head: broad, ridged brow, glowing eyes, curved tusks
+  ell(c,3,-77,9,8,roundG(c,-6,12,sk));
+  c.save();c.beginPath();c.ellipse(3,-77,9,8,0,0,Math.PI*2);c.clip();const jw=c.createLinearGradient(0,-74,0,-68);jw.addColorStop(0,"rgba(0,0,0,0)");jw.addColorStop(1,"rgba(0,0,0,.35)");c.fillStyle=jw;c.fillRect(-7,-75,20,8);
+  c.fillStyle="rgba(0,0,0,.18)";for(let i=0;i<14;i++)ell(c,-4+r()*14,-82+r()*10,.4+r()*.5,.4+r()*.5,"rgba(0,0,0,.15)");c.restore();
+  c.fillStyle=shade(sk,-.42);c.beginPath();c.moveTo(-4,-81);c.quadraticCurveTo(5,-86,12.6,-80.6);c.lineTo(12,-78.6);c.quadraticCurveTo(5,-82,-3.4,-79);c.closePath();c.fill();   // brow ridge
+  c.strokeStyle="rgba(255,255,255,.18)";c.beginPath();c.moveTo(-2,-81.6);c.quadraticCurveTo(5,-85.4,11.6,-80.8);c.stroke();
+  const ge=c.createRadialGradient(8.5,-78.2,0,8.5,-78.2,2.6);ge.addColorStop(0,"#fff6b0");ge.addColorStop(.4,"#ffde59");ge.addColorStop(1,"rgba(255,222,89,0)");c.fillStyle=ge;c.fillRect(5,-81,7,6);
+  ell(c,11.3,-75.4,.6,.9,shade(sk,-.5));
+  c.fillStyle="#f2ead8";c.beginPath();c.moveTo(8.4,-71.6);c.quadraticCurveTo(11.6,-72,12.4,-77);c.quadraticCurveTo(11.2,-73.6,9.6,-71);c.closePath();c.fill();  // tusk
+  c.fillStyle="#d8cdb4";c.beginPath();c.moveTo(4.6,-71.2);c.quadraticCurveTo(6.6,-71.4,7.2,-74.4);c.quadraticCurveTo(6.6,-72.4,5.4,-70.6);c.fill();
+  arm(15,ph,sk,true);
+}
+
+function lumari2(c,b,r,ph,sw){
+  const lf=b.col||"#5fcf6f",bark="#7a5a3a",bd=shade(bark,-.45);
+  // curling root feet
+  for(let i=0;i<6;i++){const a=(i-2.5)*.38+Math.sin(ph*.5+i)*.1;c.save();c.translate((i-2.5)*2.8,-3);c.rotate(a);
+    strokeC(c,shade(bark,-.25),2.2-.15*Math.abs(i-2.5),()=>{c.moveTo(0,0);c.quadraticCurveTo(1.5,4,4*Math.sign(i-2.5||1),6.5)});c.restore()}
+  // far vine arm
+  strokeC(c,shade(lf,-.4),2.4,()=>{c.moveTo(-5,-50);c.quadraticCurveTo(-15,-40-sw*4,-11,-26)});
+  // trunk with bark grooves, a knot and moss
+  const tg=c.createLinearGradient(-10,0,10,0);tg.addColorStop(0,bd);tg.addColorStop(.35,shade(bark,.12));tg.addColorStop(.65,bark);tg.addColorStop(1,shade(bark,-.5));
+  const trunk=()=>{c.beginPath();c.moveTo(-8.5,-1);c.quadraticCurveTo(-12,-34,-7,-63);c.lineTo(7,-63);c.quadraticCurveTo(12,-34,8.5,-1);c.closePath()};
+  c.fillStyle=tg;trunk();c.fill();c.save();trunk();c.clip();
+  for(let i=0;i<7;i++){const x=-7+i*2.3;c.strokeStyle=`rgba(30,18,6,${.35+r()*.2})`;c.lineWidth=.6+r()*.6;c.beginPath();c.moveTo(x,0);c.bezierCurveTo(x-1.5+r()*3,-20,x-1.5+r()*3,-42,x+(r()-.5)*2,-64);c.stroke()}
+  c.strokeStyle="rgba(255,230,190,.12)";c.lineWidth=.6;for(let i=0;i<4;i++){const x=-5+i*3.2;c.beginPath();c.moveTo(x+.8,-4);c.quadraticCurveTo(x+1.2,-30,x+1,-58);c.stroke()}
+  c.fillStyle=bd;c.beginPath();c.ellipse(-2,-28,2.4,3.4,.2,0,Math.PI*2);c.fill();c.strokeStyle="rgba(255,230,190,.2)";c.beginPath();c.ellipse(-2,-28,2.4,3.4,.2,0,Math.PI*2);c.stroke();
+  for(let i=0;i<9;i++){ell(c,-8+r()*7,-12-r()*30,1+r()*1.4,.8+r()*1,`rgba(${90+r()*40|0},${160+r()*40|0},80,.55)`)}
+  c.restore();c.lineWidth=1;
+  // face: a hollow in the bark, eyes glowing out of it
+  const fh=c.createRadialGradient(1,-55,0,1,-55,6);fh.addColorStop(0,"rgba(15,8,2,.75)");fh.addColorStop(1,"rgba(15,8,2,0)");c.fillStyle=fh;c.beginPath();c.ellipse(1,-55,6,4.4,0,0,Math.PI*2);c.fill();
+  for(const ex of [-1.2,3.4]){const g=c.createRadialGradient(ex,-56,0,ex,-56,3.6);g.addColorStop(0,"#ffffe0");g.addColorStop(.3,"#e9ffb0");g.addColorStop(1,"rgba(233,255,176,0)");c.fillStyle=g;c.fillRect(ex-4,-60,8,8)}
+  // near vine arm with small leaves
+  strokeC(c,shade(lf,-.2),2.6,()=>{c.moveTo(5,-50);c.quadraticCurveTo(16,-40+sw*4,12,-26)});
+  for(const[t,s]of[[.35,1],[.7,-1]]){const x=5+(12-5)*t+6*Math.sin(t*Math.PI),y=-50+24*t;c.save();c.translate(x,y);c.rotate(s*.8);c.fillStyle=lf;c.beginPath();c.ellipse(2.4,0,2.6,1.1,0,0,Math.PI*2);c.fill();c.restore()}
+  // leaf crown with veins
+  for(let i=0;i<9;i++){const a=-Math.PI/2+(i-4)*.36+Math.sin(ph*.4+i)*.05;c.save();c.translate(0,-63);c.rotate(a);
+    const lc=i%2?lf:shade(lf,.16),len=12+((i*7)%4)*1.2,g=c.createLinearGradient(0,-4,0,4);g.addColorStop(0,shade(lc,.2));g.addColorStop(1,shade(lc,-.3));
+    c.fillStyle=g;c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(len*.5,-5,len*1.9,0);c.quadraticCurveTo(len*.5,5,0,0);c.fill();
+    c.strokeStyle=shade(lc,-.45);c.lineWidth=.5;c.beginPath();c.moveTo(1,0);c.lineTo(len*1.8,0);for(let k=1;k<4;k++){const x=len*.45*k;c.moveTo(x,0);c.lineTo(x+2.4,-1.8);c.moveTo(x,0);c.lineTo(x+2.4,1.8)}c.stroke();c.lineWidth=1;c.restore()}
+  const fl=["#ff8fb8","#ffd36b","#b48cff"][Math.floor(r()*3)];
+  for(let k=0;k<5;k++){c.save();c.translate(4,-79);c.rotate(k*Math.PI*2/5);ell(c,0,-2.2,1.5,2.4,fl);c.restore()}ell(c,4,-79,1.2,1.2,"#fff3b0");
+}
+
+function ossari2(c,b,r,ph,sw){
+  const rb=b.col||"#b08a2e",tr="#6b2f7a",sk="#d9c7a6",hem=Math.sin(ph)*2;
+  // far sleeve
+  c.save();c.translate(-7,-60);c.rotate(.2-sw*.15);tap(c,24,7,9,shade(rb,-.35));c.restore();
+  // robe with vertical folds
+  const robe=()=>{c.beginPath();c.moveTo(-8.5,-65);c.quadraticCurveTo(0,-68,8.5,-65);c.quadraticCurveTo(12,-30,15.5+hem,0);c.lineTo(-15.5+hem,0);c.quadraticCurveTo(-12,-30,-8.5,-65);c.closePath()};
+  c.fillStyle=roundG(c,-16,16,rb);robe();c.fill();c.save();robe();c.clip();
+  for(let i=0;i<6;i++){const x=-11+i*4.4+hem*.5;const g=c.createLinearGradient(x-2,0,x+2,0);g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(.5,"rgba(0,0,0,.22)");g.addColorStop(1,"rgba(0,0,0,0)");
+    c.fillStyle=g;c.beginPath();c.moveTo(x*.45,-62);c.lineTo(x-2+hem*.3,0);c.lineTo(x+2+hem*.3,0);c.closePath();c.fill()}
+  sheen(c,4,-48,4,14,.18);c.restore();
+  // embroidered trim: hem band and centre panel with little diamonds
+  c.fillStyle=tr;c.beginPath();c.moveTo(-15.3+hem,-6);c.lineTo(15.3+hem,-6);c.lineTo(15.5+hem,0);c.lineTo(-15.5+hem,0);c.fill();
+  c.beginPath();c.moveTo(-2.4,-65.5);c.lineTo(2.4,-65.5);c.lineTo(3.2+hem*.4,-6);c.lineTo(-3.2+hem*.4,-6);c.fill();
+  c.fillStyle="#ffd36b";for(let x=-13;x<=13;x+=3.4){c.beginPath();c.moveTo(x+hem,-4.6);c.lineTo(x+1+hem,-3);c.lineTo(x+hem,-1.4);c.lineTo(x-1+hem,-3);c.fill()}
+  for(let y=-60;y<-8;y+=5){const x=hem*.4*((y+65)/60);c.beginPath();c.moveTo(x,y);c.lineTo(x+1,y+1.5);c.lineTo(x,y+3);c.lineTo(x-1,y+1.5);c.fill()}
+  // sash
+  c.fillStyle=shade(tr,.15);c.beginPath();c.moveTo(-9.6,-44);c.quadraticCurveTo(0,-41.5,10.2,-44.6);c.lineTo(10.4,-41.4);c.quadraticCurveTo(0,-38.4,-9.8,-40.8);c.fill();
+  // near sleeve with a three-fingered hand
+  c.save();c.translate(8,-61);c.rotate(-.2+sw*.15);tap(c,24,7,9.5,shade(rb,-.12));c.fillStyle=tr;c.fillRect(-4.8,21.5,9.6,2.6);
+  c.translate(0,25);for(const a of [-.35,0,.35]){c.save();c.rotate(a);c.fillStyle=roundG(c,-1,1,sk);c.beginPath();c.roundRect?c.roundRect(-.9,0,1.8,4.6,.9):c.rect(-.9,0,1.8,4.6);c.fill();c.restore()}c.restore();
+  // long ringed neck
+  const nk=c.createLinearGradient(-3,0,3,0);nk.addColorStop(0,shade(sk,-.35));nk.addColorStop(.6,sk);nk.addColorStop(1,shade(sk,-.3));c.fillStyle=nk;c.fillRect(-2.5,-81,5,17);
+  c.fillStyle="#c9a64a";for(const y of [-79,-75.5,-72,-68.5]){c.fillRect(-2.9,y,5.8,1.4);c.fillStyle="#fff4";c.fillRect(-2.9,y,5.8,.4);c.fillStyle="#c9a64a"}
+  // head: elongated, three eyes, small mouth
+  c.fillStyle=roundG(c,-6,12,sk);c.beginPath();c.moveTo(-4.6,-84);c.bezierCurveTo(-5.6,-92,7,-94,11.4,-87.6);c.quadraticCurveTo(12.4,-84.8,9.6,-82.6);c.quadraticCurveTo(4,-80.2,-2.4,-81.6);c.closePath();c.fill();
+  sheen(c,4,-89,4,2,.25);
+  for(const[ex,ey]of[[2.4,-88.4],[7,-88.6],[4.8,-85.1]]){ell(c,ex,ey,1.7,1.5,"#f6efe0");const g=c.createRadialGradient(ex+.3,ey,0,ex+.3,ey,1.2);g.addColorStop(0,"#c98bff");g.addColorStop(1,"#2b0f3a");ell(c,ex+.35,ey,1.1,1.1,g);ell(c,ex+.7,ey-.5,.3,.3,"#fff")}
+  c.strokeStyle=shade(sk,-.5);c.lineWidth=.5;c.beginPath();c.moveTo(8.4,-83.4);c.quadraticCurveTo(9.6,-83,10.4,-83.8);c.stroke();c.lineWidth=1;
+  // headdress with a gem
+  c.fillStyle=roundG(c,-6,12,tr);c.beginPath();c.moveTo(-5.4,-90.4);c.quadraticCurveTo(3,-104,11.6,-90);c.quadraticCurveTo(3,-93,-5.4,-90.4);c.fill();
+  c.strokeStyle="#ffd36b";c.lineWidth=.7;c.beginPath();c.moveTo(-5,-90.6);c.quadraticCurveTo(3,-93.4,11.2,-90.2);c.stroke();c.lineWidth=1;
+  const gm=c.createRadialGradient(3.4,-96,0,3.4,-96,2.2);gm.addColorStop(0,"#e8fffb");gm.addColorStop(.4,"#5ce1e6");gm.addColorStop(1,"#1d6f80");ell(c,3.4,-95.6,1.8,2.2,gm);
+}
+
+function alien2(c,b,r,ph,sw){ // peoples beyond the frontier: body plan picked from their seed so each species looks consistent
+  const col=b.col||"#9db4ff",kind=(b.seed||0)%3,dk=shade(col,-.5);
+  if(kind===0){ // gelatinous: translucent body, visible organs, tapering tentacles
+    for(let i=0;i<7;i++){c.save();c.translate(-12+i*4,-13);c.rotate(Math.sin(ph+i)*.3+(i-3)*.06);
+      const g=c.createLinearGradient(0,0,0,16);g.addColorStop(0,shade(col,-.15));g.addColorStop(1,shade(col,-.5));c.fillStyle=g;
+      c.beginPath();c.moveTo(-1.8,0);c.quadraticCurveTo(-1.4,9,0,16);c.quadraticCurveTo(1.4,9,1.8,0);c.fill();
+      for(let k=3;k<14;k+=3.2)ell(c,0,k,.45,.45,"rgba(255,255,255,.35)");c.restore()}
+    const g=c.createRadialGradient(-4,-42,2,0,-32,25);g.addColorStop(0,shade(col,.55));g.addColorStop(.55,col);g.addColorStop(1,dk);
+    c.globalAlpha=.88;ell(c,0,-32,17,22,g);c.globalAlpha=1;
+    c.save();c.beginPath();c.ellipse(0,-32,17,22,0,0,Math.PI*2);c.clip();c.globalAlpha=.35;              // organs seen through the skin
+    ell(c,-3,-28,6,7,shade(col,-.35));ell(c,4,-22,3.5,4,shade(col,-.45));ell(c,-1,-38,3,3,"#ffe0f0");c.globalAlpha=1;
+    sheen(c,-6,-44,6,4,.45);c.restore();
+    for(const[x,y,s]of[[6,-41,3.2],[-2,-44,2.6]]){ell(c,x,y,s,s,"#f8fbff");const ig=c.createRadialGradient(x+.6,y,0,x+.6,y,s*.7);ig.addColorStop(0,"#ffde59");ig.addColorStop(1,"#5a3a05");
+      ell(c,x+.6,y,s*.6,s*.6,ig);ell(c,x+.7,y,s*.28,s*.28,"#000");ell(c,x+1.2,y-.8,s*.15,s*.15,"#fff")}
+  }else if(kind===1){ // tall and thin: long jointed limbs, huge domed head, large dark eyes
+    const leg=(p,lc)=>{c.save();c.translate(0,-42);c.rotate(Math.sin(p)*.4);tap(c,22,4,2.8,lc);c.translate(0,21);joint(c,1.6,shade(lc,.1));c.rotate(Math.max(0,-Math.cos(p))*.5);tap(c,21,2.8,2,lc);
+      c.translate(0,20.5);c.rotate(-Math.sin(p)*.4);c.fillStyle=dk;c.beginPath();c.moveTo(-1.5,-.5);c.lineTo(6,0);c.lineTo(5,1.5);c.lineTo(-1.6,1.5);c.fill();c.restore()};
+    leg(ph+Math.PI,shade(col,-.32));
+    c.save();c.translate(-1,-68);c.rotate(.2-sw*.4);tap(c,16,2.6,2,shade(col,-.3));c.translate(0,15.5);c.rotate(-.3);tap(c,15,2,1.6,shade(col,-.3));c.restore();
+    c.fillStyle=roundG(c,-5.5,5.5,col);c.beginPath();c.moveTo(-4.5,-72);c.quadraticCurveTo(0,-74,4.5,-72);c.quadraticCurveTo(5.4,-56,3.6,-40);c.lineTo(-3.6,-40);c.quadraticCurveTo(-5.4,-56,-4.5,-72);c.fill();
+    c.strokeStyle="rgba(0,0,0,.18)";for(const y of [-64,-58,-52]){c.beginPath();c.moveTo(-3.6,y);c.quadraticCurveTo(0,y+1.2,3.6,y);c.stroke()}
+    leg(ph,col);
+    c.fillStyle=roundG(c,-1.4,1.4,shade(col,-.1));c.fillRect(-1.2,-78,2.4,7);
+    const hg=c.createRadialGradient(-2,-90,2,2,-84,17);hg.addColorStop(0,shade(col,.35));hg.addColorStop(.6,col);hg.addColorStop(1,dk);ell(c,2,-85,13,15,hg);
+    c.strokeStyle="rgba(0,0,0,.12)";c.beginPath();c.moveTo(-6,-95);c.quadraticCurveTo(2,-98,10,-93);c.stroke();sheen(c,-2,-93,6,4,.3);
+    c.fillStyle="#05070f";c.beginPath();c.ellipse(8.4,-84,3.4,5.6,-.35,0,Math.PI*2);c.fill();sheen(c,9.2,-86.6,1.4,1.8,.8);
+    c.strokeStyle=shade(col,-.4);c.lineWidth=.5;c.beginPath();c.moveTo(10.4,-75.6);c.lineTo(12.4,-76.4);c.stroke();c.lineWidth=1;
+    c.save();c.translate(1,-68);c.rotate(-.15+sw*.4);tap(c,16,2.6,2,col);c.translate(0,15.5);joint(c,1.2,shade(col,.1));c.rotate(-.35);tap(c,15,2,1.6,col);
+    c.translate(0,15);strokeC(c,dk,.6,()=>{for(const a of [-.4,0,.4]){c.moveTo(0,0);c.lineTo(Math.sin(a)*3,Math.cos(a)*3.5)}});c.restore();
+  }else{ // reptilian: scaled hide, crest, long tail, clawed feet
+    strokeC(c,shade(col,-.28),6.5,()=>{c.moveTo(-6,-30);c.quadraticCurveTo(-24,-20+sw*3,-31,-5)});
+    strokeC(c,shade(col,-.1),2.4,()=>{c.moveTo(-7,-31);c.quadraticCurveTo(-24,-22+sw*3,-30.5,-6)});
+    const leg=(p,lc)=>{c.save();c.translate(0,-33);c.rotate(Math.sin(p)*.42-.15);tap(c,15,9,6,lc,1.4);c.translate(0,14);c.rotate(.5);tap(c,12,6,4.5,lc);
+      c.translate(0,11.5);c.rotate(-.35-Math.sin(p)*.42);c.fillStyle=dk;for(const x of [0,2.6,5.2]){c.beginPath();c.moveTo(x-1,0);c.lineTo(x+3.4,1);c.lineTo(x-1,1.8);c.fill()}c.restore()};
+    leg(ph+Math.PI,shade(col,-.32));
+    const bg=c.createLinearGradient(-11,0,11,0);bg.addColorStop(0,dk);bg.addColorStop(.4,shade(col,.12));bg.addColorStop(1,shade(col,-.4));c.fillStyle=bg;c.beginPath();c.ellipse(0,-48,11,18.5,0,0,Math.PI*2);c.fill();
+    c.save();c.beginPath();c.ellipse(0,-48,11,18.5,0,0,Math.PI*2);c.clip();c.strokeStyle="rgba(0,0,0,.18)";c.lineWidth=.5;
+    for(let y=-66;y<-30;y+=2.6)for(let x=-10+((y/2.6)%2)*1.3;x<11;x+=2.6){c.beginPath();c.arc(x,y,1.3,0,Math.PI);c.stroke()}c.restore();c.lineWidth=1;
+    c.fillStyle=shade(col,.3);for(let i=0;i<5;i++){c.beginPath();c.ellipse(4.5,-62+i*6,3.6,1.6,0,0,Math.PI*2);c.fill()}                       // belly plates
+    leg(ph,col);
+    c.fillStyle=roundG(c,-4,17,col);c.beginPath();c.moveTo(-4,-62);c.lineTo(17,-68);c.quadraticCurveTo(17.5,-71.5,14,-75);c.quadraticCurveTo(5,-80,-2,-78);c.closePath();c.fill();
+    c.fillStyle=shade(col,-.35);for(let i=0;i<4;i++){c.beginPath();c.moveTo(-2+i*3,-77.5+i*.4);c.lineTo(-.5+i*3,-83+i*.6);c.lineTo(1+i*3,-77+i*.4);c.fill()}   // crest
+    c.strokeStyle="rgba(0,0,0,.4)";c.beginPath();c.moveTo(8,-67.8);c.lineTo(16.4,-68.8);c.stroke();
+    const eg=c.createRadialGradient(8,-73,0,8,-73,2.4);eg.addColorStop(0,"#fff6b0");eg.addColorStop(.5,"#ffde59");eg.addColorStop(1,"#6b4a05");ell(c,8,-73,2.2,1.8,eg);c.fillStyle="#000";c.fillRect(7.7,-74.6,.6,3.2);
+    ell(c,15.6,-71.4,.5,.4,"#000");
+    c.save();c.translate(4,-58);c.rotate(sw*.4+.1);tap(c,11,4.4,3.4,col);c.translate(0,10.5);c.rotate(-.5);tap(c,9,3.4,2.6,col);
+    c.translate(0,9);strokeC(c,dk,.7,()=>{for(const a of [-.4,0,.4]){c.moveTo(0,0);c.lineTo(Math.sin(a)*2.6+1,Math.cos(a)*2.8)}});c.restore();
+  }
+}
+
 // portrait: the same figure, zoomed to head and shoulders, on a lit backdrop
 function drawPortrait(cv,b,frame){
   if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth||cv.width,H=cv.clientHeight||cv.height;
   cv.width=W*dpr;cv.height=H*dpr;const c=cv.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);
   const bg=c.createRadialGradient(W*.55,H*.35,4,W*.5,H*.5,W);bg.addColorStop(0,shade(b.col||speciesColor(b.sp),-.35));bg.addColorStop(1,"#05070f");c.fillStyle=bg;c.fillRect(0,0,W,H);
-  const top=frame?frame.top:({Ossari:-102,Kesh:-96,Lumari:-92,Alien:-102}[b.sp]??-90),bottom=top+(frame?frame.span:62);
+  const top=frame?frame.top:({Ossari:-106,Kesh:-98,Lumari:-96,Vorrn:-92,Alien:-102}[b.sp]??-100),bottom=top+(frame?frame.span:({Ossari:50,Kesh:52,Lumari:54,Vorrn:46,Alien:62}[b.sp]??40));
   const s=H/(bottom-top);c.save();c.translate(W/2-(frame?frame.cx:4)*s,-top*s);c.scale(s,s);drawBeing(c,b,0,false);c.restore();
   c.strokeStyle="rgba(255,255,255,.12)";c.strokeRect(.5,.5,W-1,H-1);
 }
@@ -3171,7 +3479,7 @@ function liftOff(){
   const L=land;if(!L)return;const rv=L.rover,sh=ship(),rov=ensureRover();
   const atLander=Math.hypot(rv.x-L.site[0],rv.y-L.site[1])<3.2;
   let lost=0,kept=0;
-  if(L.stalled&&!atLander){lost=roverCargo();rv.cargo={};rv.specs=[]}
+  if(L.stalled&&!atLander){lost=roverCargo();if(lost&&insured()){const pay=Math.round(Object.entries(rv.cargo).reduce((n,[m,t])=>n+t*sellPrice(m),0)*.5+rv.specs.reduce((n,sp)=>n+specPrice(sp),0)*.5);if(pay){sh.credits+=pay;logMsg(`Your insurance paid ${pay} credits for the abandoned rover cargo.`)}}rv.cargo={};rv.specs=[]}
   else if(roverCargo()){moveToHold(rv.cargo,rv.specs);kept=roverCargo()}
   rov.store={minerals:{...rv.cargo},specimens:[...rv.specs]};
   logMsg(`Lifted off from ${L.p.name}.${lost?` ${lost} tons of rover cargo were abandoned with the stranded rover.`:""}${kept?` The hold is full, so ${kept} tons stay in the rover as extra storage.`:""}`);
@@ -3277,8 +3585,8 @@ window.addEventListener("keydown",e=>{
   if(!land||typing(e)||!$("modal").hidden)return;const k=e.key,K=land.keys;
   if(k==="ArrowLeft"||k==="a"||k==="A")K.l=true;else if(k==="ArrowRight"||k==="d"||k==="D")K.r=true;
   else if(k==="ArrowUp"||k==="w"||k==="W")K.u=true;else if(k==="ArrowDown"||k==="s"||k==="S")K.d=true;
-  else if(k==="e"||k==="E"||k==="Enter"||k===" ")landAction();
-  else if(k==="q"||k==="Q")roverShoot("stun");else if(k==="f"||k==="F")roverShoot("kill");else return;
+  else if(k==="z"||k==="Z"||k===",")landAction();
+  else if(k==="x"||k==="X"||k===".")roverShoot("stun");else if(k==="c"||k==="C"||k==="/")roverShoot("kill");else return;
   e.preventDefault();
 });
 window.addEventListener("keyup",e=>{if(!land)return;const k=e.key,K=land.keys;
@@ -3335,9 +3643,10 @@ function loungeState(){
     pats.push({id:"bar",kind:"bartender",name:pick(r,["Mags","Orrin","Dree","Bex","Tully"]),sp:barSp,col:speciesColor(barSp),seed:Math.floor(r()*1e9)})}
   const lsp=pick(r,["Human","Human","Kesh","Vorrn","Lumari"]);
   pats.push({id:"sp1",kind:"spacer",name:pick(r,FIRST.filter(n=>!sh.crew.some(c=>c.name===n))),sp:lsp,col:speciesColor(lsp),seed:Math.floor(r()*1e9)});
+  if(!col&&sbHas(s,"lounge")){const sp2=pick(r,["Human","Ossari","Lumari","Kesh"]);pats.push({id:"loc",kind:"spacer",name:pick(r,FIRST.filter(n=>!sh.crew.some(c=>c.name===n)&&!pats.some(q=>q.name===n))),sp:sp2,col:speciesColor(sp2),seed:Math.floor(r()*1e9)})}
   if(typeof krillianPatron==="function"){const kp=krillianPatron(r,col);if(kp)pats.push(kp)}
   const vis=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)!=="Hostile"&&(!col||a.key!==col.key));
-  if(vis.length&&r()<(col?.4:.7)){const a=pick(r,vis);pats.push({id:"vis",kind:"visitor",aKey:a.key,name:def(a.key).name.split(" ")[0]+" envoy",sp:CREW_LOOK[a.key]||"Alien",col:def(a.key).color,seed:hashStr(a.key)})}
+  if(vis.length&&r()<(col?.4:sbHas(s,"lounge")?.9:.7)){const a=pick(r,vis);pats.push({id:"vis",kind:"visitor",aKey:a.key,name:def(a.key).name.split(" ")[0]+" envoy",sp:CREW_LOOK[a.key]||"Alien",col:def(a.key).color,seed:hashStr(a.key)})}
   const offd=sh.crew.filter(c=>!c.captain);
   if(offd.length&&r()<.8){const c=pick(r,offd);pats.push({id:"crew",kind:"crew",crewId:c.id,name:c.name,sp:c.species,col:speciesColor(c.species),seed:c.id})}
   const intro=col?(col.alien?`You step into the ${col.short} cantina at ${col.name}. The air smells strange, and every head turns your way.`:`You step into the ${col.stage>=2?"colonists' tavern":"mess hall"} on ${col.p.name}. Someone recognizes you and raises a cup.`):`You step into the Starlight Lounge. Soft music, low light, and a view of the stars.`;
@@ -3430,6 +3739,7 @@ function loungeHtml(){
       ${L.chipOffer&&!L.chipBought?`<div class="item"><div>Old data chip<div class="d">A spacer's find, covered in Vael glyphs</div></div><button class="sm" id="lChip" ${sh.credits<150?"disabled":""}>150 cr</button></div>`:""}
       <div class="item"><div>Dice with the spacers<div class="d">Double or nothing · ${3-L.dice} games left tonight</div></div><div class="row" style="gap:4px"><button class="sm" data-dice="25" ${L.dice>=3||sh.credits<25?"disabled":""}>25</button><button class="sm" data-dice="100" ${L.dice>=3||sh.credits<100?"disabled":""}>100</button></div></div>
     </div>
+    ${(()=>{const bar=L.pats.find(p=>p.kind==="bartender");L.who=bar?bar.name:"The bartender";L.title="The bartender sells information";return infoHtml(L)})()}
     ${krillJobHtml()}
     <p class="hint">Credits ${Math.round(sh.credits).toLocaleString()}</p>`;
 }
@@ -3440,6 +3750,7 @@ function wireLounge(el){
   on("lChip",()=>{const sh=ship(),L=port.lounge;if(sh.credits<150)return;sh.credits-=150;L.chipBought=true;
     if(discoverFragment("chip"))loungeSay("Your science officer cracks the chip open. It's a Vael record.");else loungeSay("The chip is corrupted. Whatever was on it is gone.");renderRoom();changed()});
   el.querySelectorAll("[data-kjob]").forEach(b=>b.onclick=()=>takeKrillJob(b.dataset.kjob));
+  el.querySelectorAll("[data-info]").forEach(b=>b.onclick=()=>buyInfo(port.lounge,b.dataset.info));
   el.querySelectorAll("[data-dice]").forEach(b=>b.onclick=()=>playDice(+b.dataset.dice));
   el.querySelectorAll("canvas[data-lsp]").forEach(cv=>drawPortrait(cv,{sp:cv.dataset.lsp,col:cv.dataset.lcol,seed:+cv.dataset.lseed}));
   drawLounge($("loungeCv"));
@@ -3725,7 +4036,7 @@ function roverShoot(mode){
   L.fx.push({x1:rv.x,y1:rv.y,x2:t.x,y2:t.y,col:mode==="stun"?"#7fe3ff":"#ff5a5a",life:.25});
   if(mode==="stun"){
     const chance=Math.min(.95,.6+rov.gun*.08-sp.size*.05);
-    if(Math.random()<chance){t.stun=stunTime(rov.gun);landMsg(`Stunned the ${sp.name}. Drive up and press E to load it.`)}
+    if(Math.random()<chance){t.stun=stunTime(rov.gun);landMsg(`Stunned the ${sp.name}. Drive up and press Z to load it.`)}
     else landMsg(`The ${sp.name} shrugs off the stun ray.`);
   }else{
     t.hp-=Math.round(gunDmg(rov.gun)*(.8+Math.random()*.4));
@@ -4111,7 +4422,7 @@ function scavenge(){
   if(w.fuel){const room=tankCap(sh.up.tank)-sh.fuel,f=Math.min(room,w.fuel);if(f>=1){sh.fuel=Math.round((sh.fuel+f)*10)/10;got.push(`${Math.round(f)} fuel`)}}
   if(w.torps&&sh.up.torpedoes){const cap=torpCap(sh.up.torpedoes);const n=Math.max(0,Math.min(w.torps,cap-sh.torps));if(n){sh.torps+=n;got.push(`${n} torpedo${n>1?"es":""}`)}}
   if(w.relic){sh.relics=sh.relics||[];const rl=makeRelic(rng(Date.now()),`Wreck of a ${d.name} ship`);sh.relics.push(rl);got.push(`a relic, the ${esc(rl.name)}`)}
-  if(specialtyOf(enc.a.key)&&Math.random()<.4+eff("eng")/400){const part=gainL6Part(enc.a.key,`Salvaged from a ${d.name} wreck:`);if(part)got.push(`<b style="color:#ffd36b">a ${esc(part)}</b>`)}
+  if(specialtyOf(enc.a.key)&&ship().up[specialtyOf(enc.a.key)]===5&&Math.random()<.08+Math.min(.07,eff("eng")/1400)){const part=gainL6Part(enc.a.key,`Salvaged from a ${d.name} wreck:`);if(part)got.push(`<b style="color:#ffd36b">a ${esc(part)}</b>`)}
   encLine(`<b style="color:var(--green)">You scavenge the wreckage:</b> ${got.join(", ")}.${left>0?` No room for ${left} more tons.`:""}`);
   logMsg(`Scavenged a ${d.name} wreck: ${got.join(", ").replace(/<[^>]+>/g,"")}.`);
   renderEnc();renderCaptain();changed();
@@ -4182,6 +4493,7 @@ const hpColor=c=>hpPct(c)<.25?"var(--danger)":hpPct(c)<.6?"var(--amber)":"var(--
 // returns a short note for the log; the captain can be wounded but never dies
 function hurtCrew(c,amt,cause){const sh=ship();if(!c||!sh.crew.includes(c))return "";
   c.health-=Math.max(1,Math.round(amt));
+  if(c.health<=0&&mLvl()&&Math.random()<mLvl()*.25){c.health=1;logMsg(`${c.name} nearly died${cause?" "+cause:""}, but the med bay pulled them back from the brink.`);return ` <b style="color:var(--amber)">${esc(c.name)} nearly died, but the med bay saved them.</b>`}
   if(c.health>0)return hpPct(c)<.25?` ${c.name} is critically injured.`:` ${c.name} was injured.`;
   const wasCap=c.captain,who=c.original?"The Captain":`${c.name} the ${c.species}${c.role?`, your ${stationName(c.role)},`:""}`;
   sh.crew.splice(sh.crew.indexOf(c),1);
@@ -4206,7 +4518,7 @@ function promoteCaptain(){const sh=ship();
 function hurtRandom(amt,cause){const sh=ship();if(!sh.crew.length)return "";return hurtCrew(pick(Math.random,sh.crew),amt,cause)}
 // the doctor treats one patient (takes a day); without a doctor the critically hurt get worse
 function treatCrew(c){const sh=ship();if(!staffed("med")||!c||c.health>=c.maxhp)return;
-  const amt=Math.round(15+eff("med")*.6);c.health=Math.min(c.maxhp,c.health+amt);gainXP("med",8);
+  const amt=Math.round((15+eff("med")*.6)*(1+mLvl()*.4));c.health=Math.min(c.maxhp,c.health+amt);gainXP("med",8);
   logMsg(`Your doctor treated ${c.name} (+${amt} HP).`);passDay(1);changed()}
 function crewTick(days){const sh=ship();if(!sh||!days)return;
   if(staffed("med"))return;
@@ -4620,7 +4932,7 @@ function ionHtml(){const sh=ship();if(!G.vparts||!G.vparts.length)return "";
 window.addEventListener("keydown",e=>{if(gameMode!=="captain"||!G.ship||typing(e)||!$("modal").hidden||land||(port&&port.open))return;
   if(e.key==="1"){e.preventDefault();toggleShields();if(!enc)renderCaptain()}else if(e.key==="2"){e.preventDefault();toggleArm();if(!enc)renderCaptain()}else if(e.key==="3"){e.preventDefault();toggleIon();if(!enc)renderCaptain()}});
 
-const VERSION="0.76.5"; // bump with every change
+const VERSION="0.77"; // bump with every change
 
 // =====================================================================
 // ---------- AUTOMATIC BACKUPS THAT SURVIVE CLEARING THE BROWSER ----------
@@ -4728,7 +5040,7 @@ const ABOUT=[
 <p class="hint">Version ${typeof VERSION!=="undefined"?VERSION:""}</p>`}
 ];
 // CHANGELOG:BEGIN (generated from CHANGELOG.md)
-const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
+const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
 // CHANGELOG:END
 const MANUAL=[
  {t:"Welcome",h:`<h3>Welcome aboard, Captain</h3>
@@ -4778,15 +5090,17 @@ const MANUAL=[
 <li>Crew have <b>hit points</b>. Injured crew work less well. A doctor heals a little on every jump, or can treat someone directly from the Crew tab. Without a doctor the badly hurt get worse, and crew can die.</li>
 <li>If the captain falls, the First Officer takes command. If both are lost, the crew member with the most charisma steps up.</li>
 <li>Train skills and hit points at the starbase's Personnel office, and hire new crew there.</li>
+<li><b>Crew quarters</b> and a <b>med bay</b>, bought at the shipyard, help everyone heal and learn faster, and can save a life.</li>
 </ul>`},
  {t:"Spaceport",h:`<h3>Your starbase spaceport</h3>
-<p>Dock at a starbase, then choose <b>Enter spaceport</b> to walk around. Walk left and right with A/D or the arrow keys, and press W, Up, Enter or Space at a doorway to go inside. Here's what you'll find:</p>
+<p>Dock at a starbase, then choose <b>Enter spaceport</b> to walk around. Walk left and right with A/D or the arrow keys, and press W, Up, Z or , at a doorway to go inside. Here's what you'll find:</p>
 <table>
 <tr><th>Place</th><th>What it's for</th></tr>
-<tr><td><b>Shipyard</b></td><td>Buy ship and rover upgrades and load torpedoes. Hover over an upgrade to preview it on your ship. You can also rename your ship here.</td></tr>
-<tr><td><b>Trade Depot</b></td><td>Three counters: <i>Ship</i> (refuel, repair, medical bay), <i>Sell</i> (minerals, relics and wildlife specimens) and <i>Buy</i> (minerals).</td></tr>
+<tr><td><b>Shipyard</b></td><td>Buy ship and rover upgrades and load torpedoes. Hover over an upgrade to preview it on your ship. You can also rename your ship here, fit crew quarters and a med bay, choose a paint scheme, and have your ship's name painted on the hull.</td></tr>
+<tr><td><b>Trade Depot</b></td><td>Three counters: <i>Ship</i> (refuel, repair, medical bay, insurance), <i>Sell</i> (minerals, relics and wildlife specimens) and <i>Buy</i> (minerals).</td></tr>
 <tr><td><b>Personnel</b></td><td>Assign stations, train any skill or hit points, and hire new crew from the <i>For hire</i> list.</td></tr>
-<tr><td><b>Lounge</b></td><td>Buy a drink and talk. Spacers trade rumors and star charts, alien envoys share news from their people, and your own crew sometimes pick up new skills over a good conversation.</td></tr>
+<tr><td><b>Lounge</b></td><td>Buy a drink and talk. Spacers trade rumors and star charts, alien envoys share news from their people, and your own crew sometimes pick up new skills over a good conversation. The bartender also sells star charts, tips and other information.</td></tr>
+<tr><td><b>Operations</b></td><td>Station news, alien relations, and <i>starbase improvements</i> you can pay for: a bigger shipyard, a refinery, or a bigger lounge. Each one helps only at that starbase.</td></tr>
 <tr><td><b>Observation deck</b></td><td>A window onto the docking bay, where you can see your ship as she looks today.</td></tr>
 </table>
 <p class="hint">Starbase services are also on the <b>Starbase</b> tab while you're docked, if you'd rather skip the walk.</p>`},
@@ -4801,11 +5115,11 @@ const MANUAL=[
 <table>
 <tr><th>Place</th><th>What it's for</th></tr>
 <tr><td><b>Trade post</b></td><td>Buy fuel and local minerals. Sell your cargo, relics and specimens. Goods the colony wants are marked <i>Wanted</i> and pay much more than a starbase. Some species sell rare ship parts here.</td></tr>
-<tr><td><b>Colony hall</b></td><td>Talk to an official. You'll learn where their homeworld is, how they feel about you, and what they pay extra for.</td></tr>
+<tr><td><b>Colony hall</b></td><td>Talk to an official. You'll learn where their homeworld is, how they feel about you, and what they pay extra for. Officials will also sell star charts, tips and news of other peoples.</td></tr>
 <tr><td><b>Cantina</b></td><td>Drinks, dice and gossip, like the Lounge, but with local regulars. Strangers drift through cantinas too, and some of them offer work. Keep an eye on your credits.</td></tr>
 </table>
 <h3>Your own colonies</h3>
-<p>Worlds you recommend become colonies of their own. Visit them to buy fuel from their refinery, sell them metal to build with, check on their progress at the colony office, and share a drink in the mess hall or tavern.</p>`},
+<p>Worlds you recommend become colonies of their own. Visit them to buy fuel from their refinery, sell them metal to build with, check on their progress at the colony office (where you can also fund them, so they grow faster), and share a drink in the mess hall or tavern.</p>`},
  {t:"Exploring",h:`<h3>Getting around</h3>
 <ol>
 <li><b>Pick a star</b> on the map and press <b>Jump</b>. If you don't have enough fuel you can jump anyway, but you'll drop out in deep space and need the radio.</li>
@@ -4852,9 +5166,11 @@ const MANUAL=[
 <tr><td></td><td>X or .</td><td>Fire a torpedo</td></tr>
 <tr><td></td><td>C or /</td><td>Fire special weapons, once fitted</td></tr>
 <tr><td>Planet surface</td><td>W A S D or arrow keys</td><td>Drive the rover</td></tr>
-<tr><td></td><td>E, Enter or Space</td><td>Mine, explore ruins, load animals</td></tr>
+<tr><td></td><td>Z or ,</td><td>Mine, explore ruins, load animals</td></tr>
+<tr><td></td><td>X or .</td><td>Fire the stunner</td></tr>
+<tr><td></td><td>C or /</td><td>Fire a lethal shot</td></tr>
 <tr><td>Spaceport</td><td>A / D or left / right arrows</td><td>Walk</td></tr>
-<tr><td></td><td>W, Up, Enter or Space</td><td>Go through a doorway</td></tr>
+<tr><td></td><td>W, Up, Z or ,</td><td>Go through a doorway</td></tr>
 <tr><td></td><td>Esc</td><td>Leave a room / the spaceport</td></tr>
 <tr><td>Star map</td><td>Mouse wheel or pinch</td><td>Zoom</td></tr>
 <tr><td></td><td>Drag</td><td>Pan</td></tr>
@@ -5001,7 +5317,7 @@ function visitColony(s,i){const p=s.planets[i],sh=ship(),acc=colonyAccess(p);if(
 const STARBASE_DOORS=DOORS.slice(),STARBASE_HALL=HALL_LEN;
 function colonyDoors(ctx){const col=ctx.color;
   const list=[{k:"dock",name:"Landing pad",color:"#5ce1e6"},{k:"ctrade",name:ctx.alien?"Trade post":"Supply depot",color:"#ffb347"}];
-  if(!ctx.alien&&ctx.stage>=2||ctx.alien)list.push({k:"chall",name:ctx.alien?"Colony hall":"Colony office",color:col});
+  list.push({k:"chall",name:ctx.alien?"Colony hall":"Colony office",color:col});
   list.push({k:"cantina",name:ctx.alien?`${ctx.short} cantina`:ctx.stage>=2?"Colonists' tavern":"Mess hall",color:"#ff8fb8"});
   list.forEach((d,j)=>d.x=170+j*DOOR_GAP);return list}
 function openColony(s,i){
@@ -5033,13 +5349,13 @@ function drawColonyWindow(c,wx,wy,ww,wh,i,t){const ctx=port.colony,p=ctx.p;
 function postMoods(){const ctx=port.colony;if(!ctx.alien)return {buy:.85,sell:1.1};return tradeMoods(G.aliens.find(x=>x.key===ctx.key))}
 function postStock(){const ctx=port.colony;const key=`${ctx.s.id}:${ctx.i}:${ship().visits}`;if(ctx.stock&&ctx.stock.key===key)return ctx.stock;const r=rng(hashStr(key));
   const goods=Object.keys(MIN_PRICE).filter(m=>m!=="Endurium"||ctx.alien).sort(()=>r()-.5).slice(0,ctx.alien?3:2).map(m=>({m,t:rint(r,3,12)}));
-  let part=null;if(ctx.alien){const k=specialtyOf(ctx.key);if(k&&ship().up[k]<6&&l6Have(k)<L6_NEED&&r()<.6)part={k,left:1}}
+  let part=null;if(ctx.alien){const k=specialtyOf(ctx.key);if(k&&ship().up[k]===5&&l6Have(k)<L6_NEED&&r()<.12)part={k,left:1}}
   return ctx.stock={key,goods,part,fuel:ctx.alien?rint(r,30,90):ctx.stage>=2?120:25}}
 function postPrices(){const ctx=port.colony,m=postMoods(),charm=1-eff("cha")/400,boost=1+eff("cha")/300,w=ctx.alien?wantsOf(ctx.key):null;
   return {fuel:Math.round((ctx.alien?10*m.buy*charm:ctx.stage>=2?7:12)*10)/10,
     sell:x=>Math.round(MIN_PRICE[x]*(ctx.alien?1.05*m.sell*boost:(MIN_GROUP[x]==="metal"?1.25:1.05))*(w&&w.minerals.includes(x)?WANT_MULT:1)),
     buy:x=>Math.round(MIN_PRICE[x]*1.35*m.buy*charm),relic:r=>Math.round(relicPrice(r)*(ctx.alien?m.sell*(w.relics?1.5:.9):.8)),
-    spec:sp=>Math.round(specPrice(sp)*(ctx.alien?(w.fauna?1.6:.7):.9)),part:Math.round(1500*m.buy*charm/10)*10}}
+    spec:sp=>Math.round(specPrice(sp)*(ctx.alien?(w.fauna?1.6:.7):.9)),part:Math.round(4500*m.buy*charm/10)*10}}
 function tradePostHtml(){const ctx=port.colony,sh=ship(),st=postStock(),P=postPrices(),room=tankCap(sh.up.tank)-sh.fuel,hold=cargoCap()-cargoUsed(),w=ctx.alien?wantsOf(ctx.key):null;
   if(ctx.alien){const a=G.aliens.find(x=>x.key===ctx.key);if(a&&!a.wantsKnown){a.wantsKnown=true;logMsg(`The ${def(ctx.key).name} pay extra for ${wantText(ctx.key)}.`)}}
   const cargo=Object.entries(sh.cargo||{}).filter(([,n])=>n>0);
@@ -5065,11 +5381,12 @@ function colonyHallHtml(){const ctx=port.colony,sh=ship();
     return `<p class="hint" style="color:var(--text)">A ${esc(d.name)} official looks you over. ${st==="Friendly"?"“Welcome, friend of the colony.”":st==="Neutral"?"“State your business, and keep to the market.”":"“You've paid your fee. Don't make us regret it.”"}</p>
       <div class="data" style="font-size:16px">Homeworld <b>${esc(h.name)}</b> (${fmt(h.x)}, ${fmt(-h.y)}) · Relations <b style="color:${stanceColor(st)}">${st}</b></div>
       ${rels.length?`<p class="hint">Their view of their neighbors: ${rels.join(" · ")}</p>`:""}
-      <p class="hint" style="color:#ffd36b">They pay extra for ${esc(wantText(ctx.key))}.</p>`}
-  const p=ctx.p,age=(sh.day||0)-p.colony.founded;
-  return `<div class="data" style="font-size:16px">${esc(p.name)} · <b>${COLONY_STAGES[p.colony.stage]}</b> · founded day ${p.colony.founded} (${age} days ago)</div>
+      <p class="hint" style="color:#ffd36b">They pay extra for ${esc(wantText(ctx.key))}.</p>
+      ${(ctx.who=`The ${d.name} official`,ctx.title="The official will sell what the colony knows",infoHtml(ctx))}`}
+  const p=ctx.p,age=(sh.day||0)-p.colony.founded+colBoost(p.colony);
+  return `<div class="data" style="font-size:16px">${esc(p.name)} · <b>${COLONY_STAGES[p.colony.stage]}</b> · founded day ${p.colony.founded} (${(sh.day||0)-p.colony.founded} days ago)${p.colony.boost?` · your funding saved ${colBoost(p.colony)} days`:""}</div>
     <p class="hint" style="color:var(--text)">${p.colony.stage===1?"A handful of prefab domes and a lot of hope.":p.colony.stage===2?"Streets, workshops and a school. The colonists are proud of what they've built.":"A busy town with its own starbase overhead."}</p>
-    <p class="hint">${p.colony.stage===1?`Grows into a full colony in about ${Math.max(0,30-age)} days.`:p.colony.stage===2?`Builds its own starbase in about ${Math.max(0,90-age)} days.`:"Fully established."}</p>`}
+    <p class="hint">${p.colony.stage===1?`Grows into a full colony in about ${Math.max(0,30-age)} days.`:p.colony.stage===2?`Builds its own starbase in about ${Math.max(0,90-age)} days.`:"Fully established."}</p>${fundHtml()}`}
 
 // =====================================================================
 // ---------- THE KRILLIANS: galactic troublemakers, raiders, smugglers, necessary evil ----------
@@ -5213,6 +5530,99 @@ function finishShip(){const s=enc.surrender,t=s.t,a=enc.a;s.done=true;changeAtt(
 const towing=()=>!!(G.ship&&ship().prize);
 function sellPrize(){const sh=ship();if(!sh.prize)return;const pay=Math.round(sh.prize.value*(1+eff("com")/300));sh.credits+=pay;
   logMsg(`Sold the captured ${sh.prize.name} to the starbase yard for ${pay} credits.`);toast(`Captured ship sold: +${pay} cr`);sh.prize=null}
+
+// =====================================================================
+// ---------- MORE TO SPEND CREDITS ON (0.77) ----------
+// crew quarters, med bay, paint & hull lettering, starbase improvements, colony funding, information, insurance
+// =====================================================================
+function ext(){const sh=ship();sh.ext=sh.ext||{quarters:0,medbay:0,paint:"std",bigName:false,ins:null};return sh.ext}
+const QUARTERS=[{cost:1500,d:"Bunk rooms with real beds"},{cost:3000,d:"Private cabins and a galley"},{cost:6000,d:"Spacious suites, a gym and a garden deck"}];
+const MEDBAY=[{cost:2000,d:"A proper surgery and recovery beds"},{cost:4000,d:"An auto-doc and trauma pods"}];
+const qLvl=()=>G&&G.ship?ext().quarters:0,mLvl=()=>G&&G.ship?ext().medbay:0;
+const extCost=c=>Math.round(c*priceMult()/10)*10;
+// paint schemes: hull base colour, stripe colours
+const PAINTS={std:{name:"Survey grey",cost:0},midnight:{name:"Midnight blue",cost:600,base:"#4f5d82",s1:"#ffb347",s2:"#ffd36b"},
+  crimson:{name:"Crimson",cost:600,base:"#9a5252",s1:"#f2ead8",s2:"#1a1a1a"},forest:{name:"Forest green",cost:600,base:"#5f7d66",s1:"#ffd36b",s2:"#2a3a2e"},
+  desert:{name:"Desert sand",cost:600,base:"#b39a72",s1:"#6b3a1f",s2:"#f2ead8"},pearl:{name:"Pearl white",cost:900,base:"#d3d8e2",s1:"#3d6fa8",s2:"#ff6b6b"},
+  noir:{name:"Black and gold",cost:1500,base:"#3a3d47",s1:"#e0b84a",s2:"#e0b84a",gold:true}};
+const BIGNAME_COST=300;
+function extrasHtml(){const e=ext(),sh=ship();
+  const q=e.quarters,m=e.medbay,qn=QUARTERS[q],mn=MEDBAY[m];
+  const paints=Object.entries(PAINTS).map(([k,p])=>`<button class="sm${e.paint===k?" on":""}" data-paint="${k}" ${e.paint===k||sh.credits<extCost(p.cost)?"disabled":""} title="${esc(p.name)}"><i style="display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px;background:${p.base||"#9aa4b8"};border:1px solid ${p.s1||"#5ce1e6"}"></i>${esc(p.name)}${e.paint===k?" ✓":p.cost?` · ${extCost(p.cost)}`:""}</button>`).join("");
+  return `<h2 style="margin-top:6px">Crew comforts</h2><div class="shop">
+    <div class="item"><div>Crew quarters <span class="pips">${"■".repeat(q)}${"□".repeat(3-q)}</span><div class="d">${q?`Now: ${QUARTERS[q-1].d}. Crew heal ${q*2} HP on every jump and learn ${q*5}% faster.`:"Now: hammocks in the cargo bay."}${qn?`<br>Next: ${qn.d}`:""}</div></div>
+      <button data-ext="quarters" ${!qn||sh.credits<extCost(qn.cost)?"disabled":""}>${qn?extCost(qn.cost).toLocaleString()+" cr":"Maxed"}</button></div>
+    <div class="item"><div>Med bay <span class="pips">${"■".repeat(m)}${"□".repeat(2-m)}</span><div class="d">${m?`Now: ${MEDBAY[m-1].d}. Your doctor heals ${m*50}% more, and ${m*25}% of fatal injuries are pulled back from the brink.`:"Now: a first-aid locker."}${mn?`<br>Next: ${mn.d}`:""}</div></div>
+      <button data-ext="medbay" ${!mn||sh.credits<extCost(mn.cost)?"disabled":""}>${mn?extCost(mn.cost).toLocaleString()+" cr":"Maxed"}</button></div></div>
+    <h2 style="margin-top:6px">Paint and name</h2><div class="row" style="gap:4px;flex-wrap:wrap">${paints}</div>
+    <div class="shop" style="margin-top:4px"><div class="item"><div>Hull lettering<div class="d">${e.bigName?`“${esc(sh.name)}” is painted on the hull. It's repainted free if you rename the ship.`:"Paint your ship's name in big letters along the hull."}</div></div>
+      <button data-bigname="1" ${e.bigName||sh.credits<extCost(BIGNAME_COST)?"disabled":""}>${e.bigName?"Done":extCost(BIGNAME_COST)+" cr"}</button></div></div>`}
+function wireExtras(root){const sh=ship(),e=ext();
+  root.querySelectorAll("[data-ext]").forEach(b=>b.onclick=()=>{const k=b.dataset.ext,list=k==="quarters"?QUARTERS:MEDBAY,n=list[e[k]];if(!n)return;const c=extCost(n.cost);if(sh.credits<c)return;
+    sh.credits-=c;e[k]++;logMsg(`Installed ${k==="quarters"?"crew quarters":"a med bay"} level ${e[k]}: ${n.d.toLowerCase()}.`);toast(k==="quarters"?"Crew quarters upgraded":"Med bay upgraded");changed()});
+  root.querySelectorAll("[data-paint]").forEach(b=>{const k=b.dataset.paint,p=PAINTS[k],art=root.querySelector("canvas.shipArt");
+    b.onclick=()=>{const c=extCost(p.cost);if(sh.credits<c||e.paint===k)return;sh.credits-=c;e.paint=k;logMsg(`The yard repainted your ship ${p.name.toLowerCase()}${c?` for ${c} credits`:""}.`);toast("Repainted");changed()};
+    if(art){const show=()=>{drawShipArt(art,sh.up,{name:sh.name,paint:k});const n=root.querySelector(".shipArtNote");if(n)n.textContent=`Preview: ${p.name}`},hide=()=>{drawShipArt(art,sh.up,{name:sh.name});const n=root.querySelector(".shipArtNote");if(n)n.textContent=n.dataset.note};
+      b.addEventListener("mouseenter",show);b.addEventListener("mouseleave",hide);b.addEventListener("touchstart",show,{passive:true});b.addEventListener("touchend",hide)}});
+  root.querySelectorAll("[data-bigname]").forEach(b=>b.onclick=()=>{const c=extCost(BIGNAME_COST);if(sh.credits<c||e.bigName)return;sh.credits-=c;e.bigName=true;logMsg(`The yard painted “${sh.name}” along your hull.`);toast("Name painted on the hull");changed()})}
+
+// ---- starbase improvements (each of your starbases is improved separately)
+const SB_UP={yard:{name:"Expanded shipyard",cost:12000,d:"Ship upgrades here cost 10% less."},fuel:{name:"Refinery",cost:8000,d:"Fuel here costs 20% less."},
+  lounge:{name:"Bigger lounge",cost:6000,d:"More travelers drop in, and rumors are easier to come by."}};
+const sbHas=(s,k)=>!!(s&&s.starbase&&s.sbUp&&s.sbUp[k]);
+function stationHtml(){const s=here(),sh=ship();if(!s||!s.starbase)return "";
+  return `<h2 style="margin-top:6px">Starbase improvements · ${esc(s.name)}</h2><p class="hint">Paid for by you, built by the station crew. They only help at this starbase.</p><div class="shop">${Object.entries(SB_UP).map(([k,u])=>{const has=sbHas(s,k),c=extCost(u.cost);
+    return `<div class="item"><div>${u.name}${has?' <span class="tag home">Built</span>':""}<div class="d">${u.d}</div></div><button data-sbup="${k}" ${has||sh.credits<c?"disabled":""}>${has?"Built":c.toLocaleString()+" cr"}</button></div>`}).join("")}</div>`}
+function wireStation(root){const s=here(),sh=ship();root.querySelectorAll("[data-sbup]").forEach(b=>b.onclick=()=>{const k=b.dataset.sbup,u=SB_UP[k],c=extCost(u.cost);if(sh.credits<c||sbHas(s,k))return;
+  confirmBox(`Pay ${c.toLocaleString()} credits for a ${u.name.toLowerCase()} at ${s.name}? ${u.d}`,()=>{sh.credits-=c;s.sbUp=s.sbUp||{};s.sbUp[k]=true;logMsg(`${s.name} starbase built a ${u.name.toLowerCase()} with your credits. ${u.d}`);toast(u.name+" built");changed();if(port.open&&port.room)renderRoom()});$("mLoad").textContent="Build it"})}
+
+// ---- funding your colonies: each gift shaves days off their growth (up to a limit)
+const FUND_MAX=45;
+const colBoost=c=>Math.min(FUND_MAX,c.boost||0);
+function fundHtml(){const ctx=port.colony,c=ctx.p.colony,sh=ship();if(c.stage>=3)return "";const left=FUND_MAX-colBoost(c);
+  if(left<=0)return `<p class="hint">The colonists have all the help they can use for now. The rest is up to time.</p>`;
+  if(ctx.funded)return `<p class="hint" style="color:var(--green)">Your gift is already at work. Come back another time.</p>`;
+  return `<h2 style="margin-top:6px">Fund the colony</h2><p class="hint">Credits buy equipment and supplies, so the colony grows faster. One gift per visit.</p><div class="row" style="gap:6px">${[1000,2000,3000].map(g=>{const days=Math.min(left,g/100);
+    return `<button class="sm" data-fund="${g}" ${sh.credits<g?"disabled":""}>${g.toLocaleString()} cr · ${days} days sooner</button>`}).join("")}</div>`}
+function fundColony(g){const ctx=port.colony,c=ctx.p.colony,sh=ship();if(!c||ctx.funded||sh.credits<g)return;const days=Math.min(FUND_MAX-colBoost(c),g/100);if(days<=0)return;
+  sh.credits-=g;c.boost=(c.boost||0)+days;ctx.funded=true;logMsg(`You gave ${g.toLocaleString()} credits to the ${ctx.p.name} colony. It will grow about ${days} days sooner.`);toast("Colony funded");growColonies();renderRoom();changed()}
+
+// ---- buying information (lounges, cantinas and alien colony halls)
+function infoItems(where){const sh=ship(),me=here(),out=[];
+  const charts=G.systems.filter(x=>!x.scanned&&!x.deep&&!x.inNeb&&!x.unknown&&!x.alien).sort((a,b)=>Math.hypot(a.x-me.x,a.y-me.y)-Math.hypot(b.x-me.x,b.y-me.y)).slice(0,3);
+  if(charts.length)out.push({k:"charts",name:"Star charts",d:`Surveys of the ${charts.length} nearest systems you haven't scanned`,cost:300});
+  out.push({k:"tip",name:"A tip",d:"Where to find old ruins, rare deposits or an installation you haven't found",cost:500});
+  const homes=(G.aliens||[]).filter(a=>a.met&&!a.known&&(!where.key||a.key!==where.key));
+  if(homes.length)out.push({k:"home",name:"A homeworld",d:`Where the ${esc(def(homes[0].key).name)} come from`,cost:600});
+  return out.map(i=>({...i,cost:extCost(i.cost)}))}
+function infoHtml(where){const sh=ship(),bought=where.bought||(where.bought={});const items=infoItems(where);if(!items.length)return "";
+  return `<h2 style="margin-top:6px">${where.title||"Information for sale"}</h2><div class="shop">${items.map(i=>`<div class="item"><div>${i.name}<div class="d">${i.d}</div></div><button class="sm" data-info="${i.k}" ${bought[i.k]||sh.credits<i.cost?"disabled":""}>${bought[i.k]?"Bought":i.cost+" cr"}</button></div>`).join("")}</div>`}
+function buyInfo(where,k){const sh=ship(),me=here(),bought=where.bought||(where.bought={});const it=infoItems(where).find(x=>x.k===k);if(!it||bought[k]||sh.credits<it.cost)return;
+  const who=where.who||"A broker";let said="";
+  if(k==="charts"){const t=G.systems.filter(x=>!x.scanned&&!x.deep&&!x.inNeb&&!x.unknown&&!x.alien).sort((a,b)=>Math.hypot(a.x-me.x,a.y-me.y)-Math.hypot(b.x-me.x,b.y-me.y)).slice(0,3);
+    t.forEach(x=>x.scanned=1);said=`Charts for ${t.map(x=>x.name).join(", ")}. They're on your map now.`;addRumor(`${who} sold you star charts of ${t.map(x=>`${x.name} (${fmt(x.x)}, ${fmt(-x.y)})`).join(", ")}.`)}
+  else if(k==="tip"){const pt=tellAboutPart(who);if(pt)said=`There's old Vael machinery in the ruins on ${pt}.`;
+    else{const ins=tellAboutInstallation(who);if(ins)said=`You'll want to know about ${ins}.`;
+      else{const t=G.systems.filter(x=>!x.scanned&&!x.rumor&&!x.deep&&!x.inNeb&&!x.unknown&&x.planets.some(q=>q.minerals.includes("Endurium")||q.ruins)).sort((a,b)=>Math.hypot(a.x-me.x,a.y-me.y)-Math.hypot(b.x-me.x,b.y-me.y))[0];
+        if(t){t.rumor=true;said=`Look at ${t.name}. Endurium or ruins, maybe both.`;addRumor(`${who}: there's Endurium or old ruins at ${t.name} (${fmt(t.x)}, ${fmt(-t.y)}).`)}}}
+    if(!said){toast("They have nothing new to tell you");return}}
+  else if(k==="home"){const a=(G.aliens||[]).find(x=>x.met&&!x.known&&(!where.key||x.key!==where.key));const h=a&&alienSys(a);if(!h)return;a.known=true;
+    said=`The ${def(a.key).name} homeworld is ${h.name}.`;addRumor(`${who}: the ${def(a.key).name} homeworld is ${h.name} (${fmt(h.x)}, ${fmt(-h.y)}).`);renderContacts&&renderContacts()}
+  sh.credits-=it.cost;bought[k]=true;gainXP("cha",1);
+  if(port.lounge&&where===port.lounge)loungeSay(`${who}: “${said}”`);else logMsg(`${who}: ${said}`);
+  toast(it.name+" bought");renderRoom();changed()}
+
+// ---- insurance: a small weekly premium; halves tow and tanker fees and pays back abandoned cargo
+const INS_WEEK=25;
+const insured=()=>!!(G&&G.ship&&ext().ins);
+function insuranceHtml(){const e=ext(),sh=ship();
+  return `<div class="item"><div>Insurance${e.ins?' <span class="tag home">Covered</span>':""}<div class="d">${INS_WEEK} cr a week, taken automatically. Halves the cost of a tow or a fuel tanker, and pays back half of any rover cargo you have to abandon.${e.ins?` Next payment day ${e.ins.next}.`:" Lapses if you can't pay."}</div></div>
+    <button class="sm" id="bIns" ${!e.ins&&sh.credits<INS_WEEK?"disabled":""}>${e.ins?"Cancel":"Sign up · "+INS_WEEK+" cr"}</button></div>`}
+function toggleInsurance(){const e=ext(),sh=ship();
+  if(e.ins){e.ins=null;logMsg("You cancelled your insurance.");toast("Insurance cancelled")}
+  else{if(sh.credits<INS_WEEK)return;sh.credits-=INS_WEEK;e.ins={since:sh.day||0,next:(sh.day||0)+7};logMsg(`Insured. ${INS_WEEK} credits a week, paid automatically.`);toast("Insured")}changed()}
+function insuranceTick(){const sh=ship();if(!sh||!sh.ext||!sh.ext.ins)return;const e=sh.ext,day=sh.day||0;
+  while(e.ins&&day>=e.ins.next){if(sh.credits>=INS_WEEK){sh.credits-=INS_WEEK;e.ins.next+=7}else{e.ins=null;logMsg("You couldn't make an insurance payment, so your policy lapsed.");toast("Insurance lapsed")}}}
 
 // ---------- boot ----------
 try{const s=localStorage.getItem(KEY);if(s){G=JSON.parse(s)}}catch{}
