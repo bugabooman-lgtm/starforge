@@ -39,6 +39,17 @@ canvas#chart{display:block;width:100%;height:100%;cursor:crosshair;touch-action:
 #title .tBtns button{font-size:17px;padding:10px 28px;min-width:150px}
 #title .tLinks{font-size:13px;color:var(--dim)}
 body.toolsOpen #modal{z-index:70}
+#rhythm,#story{position:fixed;inset:0;z-index:80;background:rgba(2,3,10,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+#rhythm[hidden],#story[hidden]{display:none}
+.rBox,.sBox{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px;max-width:560px;width:100%}
+.sBox{display:flex;gap:16px;align-items:flex-start;max-width:700px;border-color:#e0c070}
+.sBox h2{color:#f0d890;margin:0 0 10px}
+.rKeys{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+.rKey{width:46px;height:46px;display:flex;align-items:center;justify-content:center;font-family:var(--f-data);font-size:30px;border:1px solid var(--line);border-radius:6px;color:var(--dim)}
+.rKey.done{color:var(--green);border-color:var(--green)}
+.rKey.now{color:#05070f;background:var(--amber);border-color:var(--amber)}
+.rBar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:6px}.rBar i{display:block;height:100%;background:var(--cyan)}
+@media (max-width:600px){.sBox{flex-direction:column}}
 #docPanel{position:fixed;inset:0;z-index:60;background:rgba(2,3,10,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 #docPanel .docBox{background:var(--panel);border:1px solid var(--cyan);box-shadow:0 12px 40px rgba(0,0,0,.6);width:min(760px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;gap:10px;padding:16px 18px}
 #docPanel .docTabs{flex-wrap:wrap}
@@ -199,7 +210,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <div id="enc" class="captainOnly" hidden role="dialog" aria-live="polite"></div>
     <div id="docPanel" hidden></div>
     <div class="hud">
-      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.78</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
+      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.79</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
       <div class="seg" role="group" aria-label="Mode"><button id="gmBuild" class="on">Builder</button><button id="gmCapt">Captain</button></div>
       <button id="modeSelect" class="on builderOnly" title="Click a star to inspect it">Select</button>
       <button id="modePlace" class="builderOnly" title="Click empty space to place a new system">Place system</button>
@@ -302,12 +313,13 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <div id="landStats"></div>
     <canvas id="landMini" aria-label="Surface minimap"></canvas>
     <div class="landMsg" id="landMsg" aria-live="polite"></div>
-    <div class="landBtns"><button id="landAct" class="primary" disabled>Nothing here</button><button id="landStun" hidden>Stun (Q)</button><button id="landFire" class="danger" hidden>Fire (F)</button></div>
+    <div class="landBtns"><button id="landAct" class="primary" disabled>Nothing here</button><button id="landStun" hidden>Stun (X)</button><button id="landFire" class="danger" hidden>Fire (C)</button><button id="landWalk" hidden>Disembark</button></div>
     <div class="landPad2"><span></span><button id="lpU" aria-label="Drive up">▲</button><span></span><button id="lpL" aria-label="Drive left">◀</button><button id="lpD" aria-label="Drive down">▼</button><button id="lpR" aria-label="Drive right">▶</button></div>
     <div class="row"><button id="landHome">Return to lander</button><button id="landLift" class="primary">Lift off</button></div>
     <p class="hint">Drive with the arrow keys or WASD, or click the ground. Z or , mines, explores or loads. X or . stuns, and C or / fires a lethal shot. Things show up inside your sensor ring. Bring cargo back to the lander to unload.</p>
   </aside>
 </div>
+<div id="rhythm" hidden></div><div id="story" hidden></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -356,7 +368,7 @@ function randomizePlanet(r,p){
   const m=[...MINERALS].sort(()=>r()-.5).slice(0,t==="Gas giant"?1:rint(r,1,4));
   p.minerals=m.map(x=>x+(x==="Endurium"&&r()<.7?"":""));
   if(r()<.04&&!p.minerals.includes("Endurium"))p.minerals.push("Endurium");
-  p.ruins=r()<.05;
+  p.ruins=t!=="Gas giant"&&r()<.05; // nobody builds on a world with no surface
   return p;
 }
 function makeSystem(r,id,x,y,opts={}){
@@ -683,7 +695,8 @@ function ensureShip(){
   if(G.ship)fixSkills();
   if(G.ship)for(const c of G.ship.crew)if(c.captain&&c.original==null)c.original=true;
   if(G.ship&&!G.ship.crew.some(c=>c.captain)){const cpt=makeCaptain(rng(Date.now()));G.ship.crew.unshift(cpt);logMsg("You take your place as Captain of the crew roster.")}
-  if(!G.ship){G.ship=newShip();G.systems.forEach(s=>{if(s.starbase)s.scanned=2});logMsg("Commissioned. Fuel is full, crew of 3 aboard. Find new worlds and sell the survey data.")}
+  if(!G.ship){G.ship=newShip();G.ship.needName=true;G.systems.forEach(s=>{if(s.starbase)s.scanned=2});logMsg("Commissioned. Fuel is full, crew of 3 aboard. Find new worlds and sell the survey data.")}
+  if(G.ship.needName&&$("title").hidden&&$("modal").hidden)setTimeout(()=>{if(G.ship&&G.ship.needName&&$("modal").hidden)askCaptainName()},250);
 }
 // people saved before a skill existed get a fair starting value for it
 function fixSkills(){
@@ -734,7 +747,7 @@ function eff(k){ // effective skill, after injuries
 }
 const staffed=k=>!!worker(k);
 function priceMult(){return 1-eff("com")/400} // up to 25% off
-function fuelPerLy(){return .6*(1-ship().up.engine*.1)*(1-eff("nav")/200)*(ship().vaelDrive?.7:1)*(inUnknown()&&!ship().quietWard?1.4:1)*(towing()?1.3:1)}
+function fuelPerLy(){return .6*(1-ship().up.engine*.1)*(1-eff("nav")/200)*(ship().vaelDrive?.7:1)*(inUnknown()&&!ship().quietWard?1.4:1)*(towing()?1.3:1)*(here()&&here().inNeb&&!(G.lore&&G.lore.quietBack)?1.5:1)}
 function fuelPrice(){const s=here();return Math.round((s&&s.home?6:9)*priceMult()*(sbHas(s,"fuel")?.8:1)*10)/10}
 function addRumor(m){const sh=ship();sh.rumors=sh.rumors||[];sh.rumors.unshift(`Stardate ${stardate(sh.day)}: ${m}`);sh.rumors=sh.rumors.slice(0,40)}
 // turn system names and coordinates in a line of text into links to the star map
@@ -1293,6 +1306,7 @@ function victoryFinal(){
   encLine(`<b style="color:var(--green)">The ${esc(d.name)} ship is destroyed.</b> Its wreckage tumbles nearby.`);
   logMsg(`Destroyed a ${d.name} ship.`);
   skirmishWon();
+  if(enc.keyAfter){const k=enc.keyAfter-1;enc.keyAfter=0;encLine("With the guardians gone, your crew boards the derelict and finds the key, humming in an ancient cradle.");setTimeout(()=>gainKey(k),200)}
   renderEnc();renderCaptain();
 }
 function disabled(){
@@ -1482,7 +1496,7 @@ function renderCaptain(){
   el.innerHTML=`${distressHtml()}${callsHtml()}${destHtml}<h2>${s.deep?"Current position":"Current system"}</h2>
     <div class="row" style="justify-content:space-between"><h3>${esc(s.name)}</h3>${s.home?'<span class="tag home">Home</span>':s.starbase?'<span class="tag base">Starbase</span>':""}</div>
     <div class="data">Coords <b>${fmt(s.x)}, ${fmt(-s.y)}</b>${s.deep?" · no star nearby":` · Class <b>${s.cls}</b> ${STAR[s.cls].name}`}</div>
-    ${alienBasesHtml(s)}${isHere&&!enc&&!anim?alienStarbaseHtml(s)+gateHtml(s)+generatorHtml(s):""}
+    ${alienBasesHtml(s)}${isHere&&!enc&&!anim?alienStarbaseHtml(s)+gateHtml(s)+generatorHtml(s)+songHtml(s)+keySiteHtml(s):""}
     ${(()=>{const t=territoryOf(s);if(!t||!t.met)return "";const st=stanceOf(t.att);return `<p class="hint">Inside <b style="color:${def(t.key).color};font-weight:600">${esc(def(t.key).name)}</b> space · they are <b style="color:${stanceColor(st)};font-weight:600">${st.toLowerCase()}</b> toward you.</p>`})()}
     ${action}${isHere&&!enc?embassyHtml(s):""}${planetsHtml}${!docked()&&!anim&&!enc?(inUnknown()?relayHtml():radioHtml()):""}`;
   if(isHere&&!enc)wireEmbassy(s);
@@ -1497,7 +1511,7 @@ function renderCaptain(){
   const cs=$("cScan");if(cs)cs.onclick=()=>{if(sysv.open&&!sysv.remote)closeSystem();else{if(sysv.open)closeSystem();scan()}};
   const cp=$("cPort");if(cp)cp.onclick=openPort;
   const cd=$("cDock");if(cd)cd.onclick=()=>flyTo("base");
-  el.querySelectorAll("[data-gate]").forEach(b=>b.onclick=()=>useGate(b.dataset.gate));{const gf=$("genFix");if(gf)gf.onclick=()=>confirmBox(`Use ${GEN_END} t of Endurium and ${GEN_METAL} t of metal to rebuild the field generator? It takes two days.`,repairGenerator)}{const rl=$("rRelay");if(rl)rl.onclick=useRelay}
+  el.querySelectorAll("[data-gate]").forEach(b=>b.onclick=()=>useGate(b.dataset.gate));wireKeySite(el,s);{const sg=$("songGo");if(sg)sg.onclick=()=>confirmBox("Set the three keys in the ring and begin the song? The Quiet will attack while you play, and if your hull falls too low the song breaks.",playTheSong)}{const gf=$("genFix");if(gf)gf.onclick=()=>confirmBox(`Use ${GEN_END} t of Endurium and ${GEN_METAL} t of metal to rebuild the field generator? It takes two days.`,repairGenerator)}{const rl=$("rRelay");if(rl)rl.onclick=useRelay}
   const rf=$("rFuel");if(rf)rf.onclick=()=>confirmBox(`Order a tanker to bring ${radioFuelAmt()} fuel for ${radioFuelCost()} credits? It arrives in ${radioDays()} days.`,orderFuel);
   const rd=$("rDepot");if(rd)rd.onclick=()=>{const d=nearestDepot(),c=depotDeliveryCost(d),n=Math.min(d.o.fuel,radioFuelAmt());confirmBox(`Send a tanker from your depot on ${d.p.name} with ${Math.round(n)} fuel? Delivery fee ${c} credits, arrives in ${Math.max(1,Math.ceil(d.dist/8))} days.`,()=>{
     const sh=ship();if(sh.credits<c)return;sh.credits-=c;d.o.fuel-=n;sh.fuel=Math.round((sh.fuel+n)*10)/10;passDay(Math.max(1,Math.ceil(d.dist/8)));logMsg(`A tanker from your depot on ${d.p.name} delivered ${Math.round(n)} fuel.`);toast("Fuel delivered");changed()})};
@@ -1908,8 +1922,11 @@ const pcv=document.getElementById("portCv"),pctx=pcv.getContext("2d");
 let PW=0,PH=0;
 
 function openPort(){
-  if(!docked())return;
+  if(!docked()||port.open)return;
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
   port.colony=null;DOORS=STARBASE_DOORS;HALL_LEN=STARBASE_HALL;port.lounge=null;
+  // the home starbase keeps the Hall of Captains at the end of its concourse
+  if(here().home){DOORS=STARBASE_DOORS.concat([{k:"hall",name:"Hall of Captains",color:"#e0c070",x:STARBASE_DOORS.at(-1).x+DOOR_GAP}]);HALL_LEN=STARBASE_HALL+DOOR_GAP}
   port.open=true;port.room=null;port.x=DOORS[0].x;port.facing=1;port.target=null;
   $("port").hidden=false;$("room").hidden=true;$("portName").textContent=here().name+" spaceport";
   // passers-by: your crew's species and aliens you've met
@@ -1927,7 +1944,7 @@ function openPort(){
 }
 function closePort(){const wasColony=!!port.colony;port.open=false;port.room=null;$("port").hidden=true;cancelAnimationFrame(port.raf);
   if(wasColony){logMsg(`Lifted off from ${port.colony.name}.`);port.colony=null;port.lounge=null;DOORS=STARBASE_DOORS;HALL_LEN=STARBASE_HALL}changed()}
-function speciesColor(sp){return {Human:"#ffd9b0",Kesh:"#9db4ff",Vorrn:"#ff9f5a",Lumari:"#7bea8c",Ossari:"#ffd36b",Synth:"#c8d0e0"}[sp]||"#d8e2f5"}
+function speciesColor(sp){return {Vael:"#b9d8cf",Human:"#ffd9b0",Kesh:"#9db4ff",Vorrn:"#ff9f5a",Lumari:"#7bea8c",Ossari:"#ffd36b",Synth:"#c8d0e0"}[sp]||"#d8e2f5"}
 function sizePort(){const r=pcv.getBoundingClientRect();PW=r.width;PH=r.height;const dpr=window.devicePixelRatio||1;pcv.width=PW*dpr;pcv.height=PH*dpr;pctx.setTransform(dpr,0,0,dpr,0,0)}
 window.addEventListener("resize",()=>{if(port.open)sizePort()});
 
@@ -2033,6 +2050,7 @@ function renderRoom(){
         <h2>Starbase network</h2><p class="hint">${G.systems.filter(x=>x.starbase).map(x=>esc(x.name)).join(" · ")}</p>${stationHtml()}`;wireStation(el);break}
     case "lounge":case "cantina":el.innerHTML=loungeHtml();wireLounge(el);break;
     case "ctrade":el.innerHTML=tradePostHtml();wireTradePost(el);break;
+    case "hall":el.innerHTML=hallHtml();wireHall(el);break;
     case "chall":el.innerHTML=colonyHallHtml();el.querySelectorAll("[data-fund]").forEach(b=>b.onclick=()=>fundColony(+b.dataset.fund));el.querySelectorAll("[data-info]").forEach(b=>b.onclick=()=>buyInfo(port.colony,b.dataset.info));break;
     case "obs":{
       el.innerHTML=`<canvas id="obsCv" style="width:100%;aspect-ratio:16/7;max-width:100%;display:block" aria-label="Your ship seen from the observation deck"></canvas>
@@ -2851,6 +2869,7 @@ function drawBeing(c,b,ph,walking){
   else if(sp==="Lumari")lumari2(c,b,r,ph,sw);
   else if(sp==="Ossari")ossari2(c,b,r,ph,sw);
   else if(sp==="Krillian")krillian2(c,b,r,ph,sw);
+  else if(sp==="Vael")vael2(c,b,r,ph,sw);
   else if(sp==="Skarr")skarr2(c,b,r,ph,sw);else if(sp==="Thexx")thexx2(c,b,r,ph,sw);else if(sp==="Selenn")selenn2(c,b,r,ph,sw);
   else if(sp==="Drovath")drovath2(c,b,r,ph,sw);else if(sp==="Quarn")quarn2(c,b,r,ph,sw);else if(sp==="Myrr")myrr2(c,b,r,ph,sw);
   else alien2(c,b,r,ph,sw);
@@ -3275,12 +3294,49 @@ function myrr2(c,b,r,ph,sw){ // barely there: a shimmering, half-seen shape, har
   for(const x of [-2.5,3]){const e=c.createRadialGradient(x,-84,0,x,-84,3);e.addColorStop(0,`rgba(255,255,255,${.6+.3*Math.sin(t*3)})`);e.addColorStop(1,"rgba(232,238,255,0)");c.fillStyle=e;c.fillRect(x-3,-87,6,6)}
   c.globalAlpha=1;c.lineWidth=1}
 
+// ---- the Vael: tall, slender gardeners of the Lattice. Xyymenni wears the coat of a fleet captain.
+function vaelGlyph(c,x,y,r,col,a){c.save();c.globalAlpha=a;c.strokeStyle=col;c.lineWidth=Math.max(.5,r*.22);c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.stroke();
+  for(const k of [-1,0,1]){c.beginPath();c.moveTo(x+k*r*.55,y-r*1.05);c.lineTo(x+k*r*.55,y+r*1.05);c.stroke()}c.restore()}
+function vael2(c,b,r,ph,sw){
+  const sk=b.col||"#b9d8cf",glow="#ffe9a8",coat=b.captain?"#2c3550":"#3a4a46",trim="#e0c070",t=ph*.6,fade=b.fading?.55+.25*Math.sin(t*3):1;
+  c.save();c.globalAlpha=fade;
+  // long legs in soft boots under the coat
+  const leg=(p,far)=>{c.save();c.translate(0,-48);c.rotate(Math.sin(p)*.3);tap(c,25,5.6,4.2,far?shade(coat,-.35):shade(coat,-.15));c.translate(0,24);c.rotate(Math.max(0,-Math.cos(p))*.5);
+    tap(c,22,4.2,3.2,far?shade(coat,-.4):shade(coat,-.2));c.translate(0,21.6);c.rotate(-Math.sin(p)*.3);c.fillStyle=far?"#1a1e2a":"#262c3c";c.beginPath();c.moveTo(-3,-3);c.lineTo(3,-3);c.quadraticCurveTo(9,-2,9,1);c.lineTo(-3,1);c.fill();c.restore()};
+  leg(ph+Math.PI,true);leg(ph,false);
+  // far arm
+  c.save();c.translate(-1,-92);c.rotate(.12-Math.sin(ph)*.25);tap(c,20,4.6,3.6,shade(coat,-.3));c.translate(0,19);c.rotate(-.2);tap(c,18,3.6,3,shade(coat,-.3));c.restore();
+  const nk=c.createLinearGradient(-2,0,3,0);nk.addColorStop(0,shade(sk,-.35));nk.addColorStop(.6,sk);nk.addColorStop(1,shade(sk,-.25));c.fillStyle=nk;c.fillRect(-2,-110,5,14);
+  // long fleet coat, split at the hem
+  c.fillStyle=roundG(c,-10,10,coat);c.beginPath();c.moveTo(-7,-96);c.lineTo(8,-97);c.quadraticCurveTo(11,-70,12,-36);c.lineTo(3,-38);c.lineTo(1,-52);c.lineTo(-1,-38);c.lineTo(-10,-36);c.quadraticCurveTo(-9,-70,-7,-96);c.closePath();c.fill();
+  c.strokeStyle=trim;c.lineWidth=.8;c.beginPath();c.moveTo(1,-96);c.lineTo(1,-53);c.moveTo(-10,-36.5);c.lineTo(-1,-38);c.moveTo(3,-38);c.lineTo(12,-36.5);c.stroke();c.lineWidth=1;
+  c.fillStyle=shade(coat,.12);c.beginPath();c.moveTo(-7,-96);c.lineTo(8,-97);c.lineTo(9,-90);c.lineTo(-7,-89);c.fill();
+  c.fillStyle=shade(coat,.05);c.beginPath();c.moveTo(-6.5,-96);c.lineTo(-4.5,-104);c.lineTo(6.5,-105);c.lineTo(8.5,-96.5);c.closePath();c.fill();c.strokeStyle=trim;c.lineWidth=.6;c.beginPath();c.moveTo(-4.5,-104);c.lineTo(6.5,-105);c.stroke();c.lineWidth=1;
+  vaelGlyph(c,5,-84,2.2,trim,.95);if(b.captain){c.fillStyle=trim;for(let k=0;k<5;k++)c.fillRect(-6+k*1.6,-80,1,3)} // fleet rank: five marks
+  sheen(c,4,-80,5,10,.1);
+  // long neck, then a tall, narrow head swept back into a crest of light filaments
+  c.fillStyle=roundG(c,-6,11,sk);c.beginPath();c.moveTo(-3,-108);c.bezierCurveTo(-7,-118,-4,-130,4,-129);c.bezierCurveTo(9,-128,10,-120,9,-114);c.quadraticCurveTo(8.6,-110,6,-107.5);c.quadraticCurveTo(1,-106,-3,-108);c.closePath();c.fill();
+  sheen(c,3,-124,3,4,.25);
+  for(let k=0;k<6;k++){const a=-2.2-k*.12+Math.sin(t*1.5+k)*.04,len=12+k*2.2;c.strokeStyle=`rgba(255,233,168,${.25+.12*k})`;c.lineWidth=.7;c.beginPath();c.moveTo(-1+k*.6,-128+k*.8);c.quadraticCurveTo(-1+Math.cos(a)*len*.5,-128-k+Math.sin(a)*len*.6,-1+Math.cos(a)*len,-126+Math.sin(a)*len*.4);c.stroke();ell(c,-1+Math.cos(a)*len,-126+Math.sin(a)*len*.4,.7,.7,glow)}c.lineWidth=1;
+  // the glyph glows faintly on the brow
+  vaelGlyph(c,5.5,-124,1.4,glow,.75*fade);
+  // large, calm eyes
+  if(b.sleeping){c.strokeStyle=shade(sk,-.5);c.lineWidth=.6;c.beginPath();c.moveTo(4.4,-117.6);c.quadraticCurveTo(6.4,-116.6,8.4,-117.8);c.stroke();c.lineWidth=1}
+  else{c.fillStyle="#0e1a22";c.beginPath();c.ellipse(6.6,-118,2.1,1.5,-.2,0,Math.PI*2);c.fill();const eg=c.createRadialGradient(7,-118.3,0,7,-118.2,1.6);eg.addColorStop(0,"#fff6d0");eg.addColorStop(.4,"#e0c070");eg.addColorStop(1,"rgba(224,192,112,0)");c.fillStyle=eg;c.fillRect(4.6,-120,4,4)}
+  c.strokeStyle=shade(sk,-.45);c.lineWidth=.45;c.beginPath();c.moveTo(7.4,-111.4);c.quadraticCurveTo(8.2,-111,8.8,-111.6);c.stroke();c.lineWidth=1;
+  // faint markings down the cheek
+  for(let k=0;k<3;k++)ell(c,2+k*.9,-114+k*2,.5,.5,`rgba(255,233,168,${.5*fade})`);
+  // near arm: long four-fingered hand
+  c.save();c.translate(3,-93);c.rotate(-.1+Math.sin(ph)*.25);tap(c,20,4.8,3.8,coat);c.translate(0,19);c.rotate(-.25);tap(c,18,3.8,3.2,coat);c.fillStyle=trim;c.fillRect(-2,15.5,4,1.4);
+  c.translate(0,18);c.fillStyle=roundG(c,-1.6,1.6,sk);for(const a of [-.3,-.1,.1,.3]){c.save();c.rotate(a);c.beginPath();c.roundRect?c.roundRect(-.7,0,1.4,6.4,.7):c.rect(-.7,0,1.4,6.4);c.fill();c.restore()}c.restore();
+  c.restore()}
+
 // portrait: the same figure, zoomed to head and shoulders, on a lit backdrop
 function drawPortrait(cv,b,frame){
   if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth||cv.width,H=cv.clientHeight||cv.height;
   cv.width=W*dpr;cv.height=H*dpr;const c=cv.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);
   const bg=c.createRadialGradient(W*.55,H*.35,4,W*.5,H*.5,W);bg.addColorStop(0,shade(b.col||speciesColor(b.sp),-.35));bg.addColorStop(1,"#05070f");c.fillStyle=bg;c.fillRect(0,0,W,H);
-  const top=frame?frame.top:({Ossari:-106,Kesh:-98,Lumari:-96,Vorrn:-92,Krillian:-84,Skarr:-108,Thexx:-80,Selenn:-114,Drovath:-110,Quarn:-96,Myrr:-106,Alien:-102}[b.sp]??-100),bottom=top+(frame?frame.span:({Ossari:50,Kesh:52,Lumari:54,Vorrn:46,Krillian:44,Skarr:46,Thexx:70,Selenn:52,Drovath:50,Quarn:50,Myrr:60,Alien:62}[b.sp]??40));
+  const top=frame?frame.top:({Ossari:-106,Kesh:-98,Lumari:-96,Vorrn:-92,Krillian:-84,Vael:-142,Skarr:-108,Thexx:-80,Selenn:-114,Drovath:-110,Quarn:-96,Myrr:-106,Alien:-102}[b.sp]??-100),bottom=top+(frame?frame.span:({Ossari:50,Kesh:52,Lumari:54,Vorrn:46,Krillian:44,Vael:62,Skarr:46,Thexx:70,Selenn:52,Drovath:50,Quarn:50,Myrr:60,Alien:62}[b.sp]??40));
   const s=H/(bottom-top);c.save();c.translate(W/2-(frame?frame.cx:4)*s,-top*s);c.scale(s,s);drawBeing(c,b,0,false);c.restore();
   c.strokeStyle="rgba(255,255,255,.12)";c.strokeRect(.5,.5,W-1,H-1);
 }
@@ -3618,10 +3674,13 @@ function genTerrain(s,i){
   const gone=id=>{if(!(id in doneAt))return false;if(id[0]==="r")return true;return today-doneAt[id]<regrow};   // ruins never come back
   const out={H,SPD,off,RES,deposits:deposits.filter(d=>!gone(d.id)),ruins:ruins.filter(d=>!gone(d.id)),site};
   ensureReachable(out,p,seed);
+  if(evaPlanet(p))ridgeAround(out,p);
   return out;
 }
 
 function landOn(s,i){
+  if(land)return; // already on the surface: a stray Enter on the Land button must not land again
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
   const sh=ship(),p=s.planets[i];const cost=landCost(p);if(sh.fuel<cost)return toast("Not enough fuel to land and take off");
   sh.fuel=Math.round((sh.fuel-cost)*10)/10;passDay(1);
   p.land=p.land||{};if(p.land.done&&!p.land.doneAt){p.land.doneAt={};for(const id of p.land.done)p.land.doneAt[id]=0}delete p.land.done;p.land.doneAt=p.land.doneAt||{};
@@ -3673,6 +3732,7 @@ function driveTo(x,y){const rv=land.rover;const path=findPath(rv.x,rv.y,x,y);
 function tickLand(dt){
   const L=land,rv=L.rover;L.t+=dt;if(L.msgT>0)L.msgT-=dt;L.gunCd=Math.max(0,L.gunCd-dt);
   tickFauna(dt);L.fx=L.fx.filter(f=>(f.life-=dt)>0);
+  if(L.foot){tickFoot(dt);L.dust=L.dust.filter(d=>(d.life-=dt*1.4)>0);if(Math.floor(L.t*4)!==Math.floor((L.t-dt)*4))renderLandHud();return}
   let dx=(L.keys.r?1:0)-(L.keys.l?1:0),dy=(L.keys.d?1:0)-(L.keys.u?1:0);
   if(dx||dy)L.target=null;
   if(dx||dy)L.path=null;
@@ -3706,7 +3766,9 @@ function nearThing(){const rv=land.rover;
   const r=land.ruins.find(d=>Math.hypot(d.x-rv.x,d.y-rv.y)<2.4);if(r)return {kind:"ruin",o:r};
   return null}
 function landAction(){
+  if(land&&land.foot){footAction();renderLandHud();return}
   const L=land,rv=L.rover,n=nearThing();if(!n||L.stalled)return;
+  if(n.kind==="ruin"&&(n.o.vael==="chamber"||n.o.vael==="key0")){landMsg("The rover can't get any closer. Disembark and go the rest of the way on foot.");return}
   if(n.kind==="animal"){captureAnimal(n.o)}
   else if(n.kind==="dep"){const d=n.o;const room=rv.cap-roverCargo();if(room<1)return landMsg("Rover hold is full. Drive back to the lander to unload.");
     const t=Math.min(room,d.t);rv.cargo[d.m]=(rv.cargo[d.m]||0)+t;d.t-=t;rv.energy=Math.max(0,rv.energy-2);gainXP("eng",2);
@@ -3742,7 +3804,7 @@ function liftOff(){
 function drawLand(){
   const L=land,c=lctx,rv=L.rover;
   const cs=Math.max(7,Math.min(16,Math.min(LPW/64,LPH/40)));           // pixels per cell
-  const camX=Math.max(0,Math.min(LW-LPW/cs,rv.x-LPW/cs/2)),camY=Math.max(0,Math.min(LH-LPH/cs,rv.y-LPH/cs/2));
+  const FC=L.foot||rv,camX=Math.max(0,Math.min(LW-LPW/cs,FC.x-LPW/cs/2)),camY=Math.max(0,Math.min(LH-LPH/cs,FC.y-LPH/cs/2));
   c.fillStyle="#000";c.fillRect(0,0,LPW,LPH);
   c.imageSmoothingEnabled=true;c.imageSmoothingQuality="high";
   c.drawImage(L.off,camX*L.RES,camY*L.RES,LPW/cs*L.RES,LPH/cs*L.RES,0,0,LPW,LPH);
@@ -3801,6 +3863,8 @@ function drawLand(){
   const atm={Breathable:"rgba(140,190,255,.05)",Thin:"rgba(200,210,230,.04)",Dense:"rgba(230,200,140,.07)",Toxic:"rgba(140,220,90,.08)",Corrosive:"rgba(220,200,60,.08)"}[L.p.atmo];
   if(atm){c.fillStyle=atm;c.fillRect(0,0,LPW,LPH)}
   const vg=c.createRadialGradient(LPW/2,LPH/2,Math.min(LPW,LPH)*.35,LPW/2,LPH/2,Math.max(LPW,LPH)*.75);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,.5)");c.fillStyle=vg;c.fillRect(0,0,LPW,LPH);
+  drawWalker(c,P,cs);
+  if(L.ridge&&L.p.vaelSite==="chamber"&&L.foot){const d=Math.hypot(L.foot.x-L.ridge.x,L.foot.y-L.ridge.y);if(d<14){c.fillStyle=`rgba(4,2,12,${Math.min(.45,(14-d)/30)})`;c.fillRect(0,0,LPW,LPH)}}
   drawLandMini(camX,camY,cs);
 }
 function drawLandMini(camX,camY,cs){
@@ -3828,12 +3892,16 @@ function renderLandHud(){
   const act=$("landAct");
   const gun=ensureRover().gun,tgt=gun&&!L.stalled?nearestTarget():null;
   $("landStun").disabled=!tgt||L.gunCd>0;$("landFire").disabled=!tgt||L.gunCd>0;$("landStun").hidden=$("landFire").hidden=!gun||!L.species.length;
+  const wb=$("landWalk");if(wb){wb.hidden=!evaPlanet(L.p);wb.textContent=L.foot?"Back to the rover":"Disembark";wb.disabled=L.stalled&&!L.foot}
+  if(L.foot){const F=L.foot,fn=nearFoot();$("landStats").insertAdjacentHTML("afterbegin",`<div class="stat">${esc(F.name)}'s oxygen ${bar(F.o2<F.max*.3?"low":"fuel",F.o2,F.max,`${Math.round(F.o2)} / ${F.max}`)}</div>`);
+    $("landStun").hidden=$("landFire").hidden=true;act.disabled=!fn;act.textContent=!fn?"Walk to the site":fn.kind==="rover"?"Climb back into the rover":fn.o.vael==="chamber"?"Enter the chamber":"Take the key";return}
   if(n&&!L.stalled){act.disabled=false;act.textContent=n.kind==="animal"?`Load ${L.species[n.o.si].name} (${L.species[n.o.si].size}t)`:n.kind==="dep"?`Mine ${n.o.m} (${n.o.t}t)`:n.o.vael?`Enter ${siteRef(n.o.vael)}`:"Explore ruins"}
   else{act.disabled=true;act.textContent=L.stalled?"Out of power":"Nothing here"}
 }
 // controls
 window.addEventListener("keydown",e=>{
   if(!land||typing(e)||!$("modal").hidden)return;const k=e.key,K=land.keys;
+  if(k==="Enter"||k===" "){e.preventDefault();return} // keep Enter and Space from pressing whatever button still has focus
   if(k==="ArrowLeft"||k==="a"||k==="A")K.l=true;else if(k==="ArrowRight"||k==="d"||k==="D")K.r=true;
   else if(k==="ArrowUp"||k==="w"||k==="W")K.u=true;else if(k==="ArrowDown"||k==="s"||k==="S")K.d=true;
   else if(k==="z"||k==="Z"||k===",")landAction();
@@ -3843,14 +3911,15 @@ window.addEventListener("keydown",e=>{
 window.addEventListener("keyup",e=>{if(!land)return;const k=e.key,K=land.keys;
   if(k==="ArrowLeft"||k==="a"||k==="A")K.l=false;if(k==="ArrowRight"||k==="d"||k==="D")K.r=false;
   if(k==="ArrowUp"||k==="w"||k==="W")K.u=false;if(k==="ArrowDown"||k==="s"||k==="S")K.d=false});
-lcv.addEventListener("click",e=>{if(!land)return;const cs=Math.max(7,Math.min(16,Math.min(LPW/64,LPH/40)));const rv=land.rover;
+lcv.addEventListener("click",e=>{if(!land)return;const cs=Math.max(7,Math.min(16,Math.min(LPW/64,LPH/40)));const rv=land.foot||land.rover;
   const camX=Math.max(0,Math.min(LW-LPW/cs,rv.x-LPW/cs/2)),camY=Math.max(0,Math.min(LH-LPH/cs,rv.y-LPH/cs/2));
+  if(land.foot){land.foot.target=[e.offsetX/cs+camX,e.offsetY/cs+camY];return}
   driveTo(e.offsetX/cs+camX,e.offsetY/cs+camY)});
 for(const[id,key]of[["lpU","u"],["lpD","d"],["lpL","l"],["lpR","r"]]){const b=$(id);const on=e=>{e.preventDefault();if(land)land.keys[key]=true},off=()=>{if(land)land.keys[key]=false};
   b.addEventListener("pointerdown",on);b.addEventListener("pointerup",off);b.addEventListener("pointerleave",off);b.addEventListener("pointercancel",off)}
 $("landAct").onclick=landAction;$("landStun").onclick=()=>roverShoot("stun");$("landFire").onclick=()=>roverShoot("kill");
 $("landHome").onclick=()=>{if(land)driveTo(land.site[0],land.site[1])};
-$("landLift").onclick=()=>{if(!land)return;const rv=land.rover;
+$("landWalk").onclick=()=>{if(!land)return;land.foot?reEmbark():disembark()};$("landLift").onclick=()=>{if(!land)return;const rv=land.rover;
   const far=Math.hypot(rv.x-land.site[0],rv.y-land.site[1])>=3.2;
   if(land.stalled&&far&&roverCargo())confirmBox(`The rover is stranded. Lift off and abandon its ${roverCargo()} tons of cargo?`,liftOff),$("mLoad").textContent="Lift off";
   else liftOff()};
@@ -3907,6 +3976,7 @@ function loungeState(){
 function loungeSay(t){const L=port.lounge;L.lines.unshift(t);L.lines=L.lines.slice(0,6)}
 function talkTo(id){
   const L=port.lounge,p=L.pats.find(x=>x.id===id),sh=ship(),s=here();if(!p||L.talked[id])return;L.talked[id]=true;
+  if(G.legend&&!L.legendTold&&p.kind!=="crew"&&Math.random()<.4){const t=legendLine(p);if(t){L.legendTold=true;loungeSay(`${p.name}: “${t}”`);gainXP("cha",1);renderRoom();return}}
   if(p.kind==="bartender"&&!L.toast&&!tributeOwned()&&Math.random()<.12){L.toast=true;
     loungeSay(`${p.name} taps a glass for quiet and raises it high. “To the finest captain who ever lived. Wherever he's gone, may it be somewhere worth exploring.” The room goes still, and glasses rise all around you.`);renderRoom();return}
   if(p.kind==="bartender"){const kr=L.pats.some(x=>x.kind==="krillian");loungeSay(`${p.name}: “${kr&&Math.random()<.6?pick(Math.random,BAR_KRILL)+" Anyway. ":""}What'll it be? Buy a drink and I'll tell you what I hear.”`)}
@@ -4053,31 +4123,38 @@ function drawLounge(cv){
 const LORE=[
   {t:"The Name",src:"any",x:"The same glyph repeats in every ruin you have walked: a circle crossed by three lines. Your science officer finally parses it as a name, the one every old world seems to remember. Vael. They were here before any species you know had learned to walk."},
   {t:"The Gardeners",src:"any",x:"The Vael did not conquer worlds. They tended them. Seed vaults beneath these ruins hold the ancestors of plants still growing on temperate worlds today. Someone planted this galaxy, carefully, one world at a time."},
-  {t:"The Lattice",src:"any",x:"Star charts etched into crystal show bright threads strung between the suns. The Vael called it the Lattice, a web that steadied the stars and kept their gardens warm. A few of those threads still hum, very faintly, on your sensors."},
+  {t:"The Lattice",src:"any",x:"Star charts etched into crystal show bright threads strung between the suns. The Vael called it the Lattice, a web that steadies the stars and keeps their gardens warm. They did not make it: their oldest records already call it ancient. A few of its threads still hum, very faintly, on your sensors."},
   {t:"A Light Left Burning",src:"any",reveal:"beacon",x:"One inscription is newer than the rest, cut in a hurry: “We have left a light for those who come after. Follow the thread.” Your navigator traces the thread to a system no one has charted: {beacon}."},
   {t:"The Beacon Speaks",src:"beacon",x:"The beacon wakes as your away team approaches, and a voice fills the chamber, patient and very old. “You found us. Then the Lattice still holds, a little. Listen, child of a younger world, and remember.”"},
-  {t:"The Quiet",src:"beacon",x:"“The Quiet came from beyond the edge of the stars. It did not burn and it did not break. It simply made things stop. Light dimmed. Life slowed. We wove the Lattice tighter, and for a long time it held.”"},
+  {t:"The Quiet",src:"beacon",x:"“The Quiet came from beyond the edge of the stars. It did not burn and it did not break. It simply made things stop. Light dimmed. Life slowed. We learned to make the Lattice sing, as others had before us, and for a long time it held.”"},
   {t:"The Wardens",src:"any",x:"The Vael grew living guardians to tend the farthest threads of the Lattice. The records call them Wardens, and the description matches the Thexx Hive exactly. The Thexx never turned against anyone. They were left behind, still guarding, long after anyone remembered what they guarded."},
   {t:"The Archive",src:"any",reveal:"archive",x:"A Vael map marks one world above all the others: the place they stored everything they knew before the end. They called it the Archive. Its coordinates point to {archive}."},
-  {t:"What They Knew",src:"archive",x:"The Archive is vast and mostly dark. What still runs shows the Vael watching the Quiet creep inward, star by star, for ten thousand years. They understood early that they could not stop it. They could only slow it down."},
+  {t:"What They Knew",src:"archive",x:"The Archive is vast and mostly dark. What still runs shows the Vael watching the Quiet creep inward, star by star, for ten thousand years. They could never destroy it. But they had learned, from someone far older, how to drive it back."},
   {t:"The Choice",src:"archive",x:"“We cannot outlast the Quiet,” the last record says. “So we will sleep inside the Lattice itself, and let it carry us until a younger people can wake it again.” The Vael did not die. They went into the threads."},
-  {t:"The Cradle",src:"any",reveal:"cradle",x:"Every thread of the Lattice runs back to a single point far beyond the frontier: the Cradle, where the first thread was spun and where the Vael lie sleeping. It waits at {cradle}."},
+  {t:"The Cradle",src:"any",reveal:"cradle",x:"Every thread of the Lattice runs back to a single point far beyond the frontier: the Cradle, the oldest place the Vael ever found, where the threads gather and where the Vael lie sleeping. Who spun the first thread, not even the Vael knew. It waits at {cradle}."},
   {t:"Awakening",src:"cradle",x:"The Cradle is a world wrapped in soft light. As your away team walks its silent halls the threads around them brighten, and a chorus of voices, millions strong, whispers one word in every language your crew speaks: “Thank you.” Across the galaxy the Lattice hums back to life. Far beyond the edge, the Quiet hesitates."},
   {t:"The Way Through",src:"cradle",reveal:"gate",x:"Deep in the Cradle, one thread does not hum with the rest. It runs outward, through the edge of the Lattice itself, toward the place the Quiet came from. The Vael sealed its mouth but never closed it: “If the Quiet is ever to be understood, someone must go and look.” The sealed gate, a wormhole held open by the Lattice, waits at {gate}."},
   {t:"Beyond the Lattice",src:"unknown",reveal:"fleet",x:"On the far side of the Gate the stars are wrong: dim, grey, too still. Your sensors return half of what they should, and the engines strain as if space itself were thicker here. A faint Vael distress call still repeats on an old thread. Its source is at {fleet}."},
-  {t:"The Last Fleet",src:"fleet",reveal:"hollow",x:"Hundreds of Vael ships drift here, intact and silent, their crews long gone. The flagship's log is calm to the end: “We came to find the heart of the Quiet and ask it what it wants. It does not answer. It only grows. Our last reading points to a hollow in the dark where no star burns.” The coordinates lead to {hollow}."},
-  {t:"The Hollow",src:"hollow",x:"At the Hollow there is no star, only a sphere of perfect black, and around it the Quiet thickens until your instruments hear nothing at all. Between the dark and the galaxy stands a shimmering wall: a Lattice energy field, the last barrier the Vael raised. It flickers. On the world below, its power generator is failing, its cores cracked and half dark. Each time the field gutters, the Quiet presses through. Your engineer thinks it can be fixed with Endurium for the cores and plain metal for the casing."},
-  {t:"The Field Holds",src:"generator",x:"The generator's cores take the Endurium and begin to glow. The hum climbs until the whole chamber sings with it. Overhead the field steadies, flickers once more, and then holds: a clean, unbroken wall of light between the galaxy and the dark. Far away, the Lattice answers. For the first time in ten thousand years, the Quiet draws back. It is not gone. But it waits outside now, and the field will hold it there."}
+  {t:"The Last Fleet",src:"fleet",reveal:"hollow",x:"Hundreds of Vael ships drift here, intact and silent: the 5th Fleet. The flagship's log is calm to the end: “We came to find the heart of the Quiet. It does not answer. It only grows. Our captain has gone into the green to wait, as he was asked to. We hold here for as long as we can.” Its last reading points to a hollow in the dark where no star burns: {hollow}."},
+  {t:"The Hollow",src:"hollow",x:"At the Hollow there is no star, only a sphere of perfect black, and around it the Quiet thickens until your instruments hear nothing at all. Between the dark and the galaxy stands a shimmering wall: an energy field far older than the Vael, a second barrier for when the Lattice grows silent. It flickers. On the world below, the generator the Vael built to keep it running is failing, its cores cracked and half dark. Your engineer thinks it can be fixed with Endurium for the cores and plain metal for the casing."},
+  {t:"The Field Holds",src:"generator",reveal:"chamber",x:"The generator's cores take the Endurium and begin to glow. The hum climbs until the whole chamber sings with it. Overhead the field steadies, flickers once more, and then holds. Your engineer's patchwork of human parts now sits inside a Vael machine that keeps an even older barrier alive. But the field only buys time. Beyond it the Lattice is still silent, and the Quiet wait. Somewhere in the green heart of the Verdant Veil, the 5th Fleet's captain is waiting too."},
+  {t:"The Sleeper",src:"chamber",reveal:"keys",x:"Beneath the collapsed ridge lies a chamber older than any ruin you have walked. Its walls are covered in marks, layer on layer, in {marks} scripts no one can read; the newest is {lastMark}. At its heart a sleep chamber flickers back to life, and {sleeper}, {sleeperTitle}, opens their eyes. “They are drawn to the stillness. When the Lattice sleeps, they come through the void and feed. We drove them back, like so many before us. Now it is your turn. Three keys, one song, one place. Hurry.” There is time to say where the keys lie, and no more."},
+  {t:"Three Keys",src:"keys",x:"Together, the three keys sing faintly, each answering the others. They are crystal tuning forks, older than the Vael, each marked with a sign you saw on the chamber wall: three peoples who held back the Quiet before. Your science officer is sure of one thing. They belong at the Hollow, where the Lattice is thinnest."},
+  {t:"The Song",src:"song",x:"You set the keys in the ring around the Hollow and play: a note, then a chord, then something vast answering from every thread at once. The Lattice wakes. The Quiet recoil from the light and slide back into the void, as they have countless times before, and will again. For now, the galaxy is safe. One task remains. Someone must carry the song to the next awakening, and the chamber is waiting."},
+  {t:"The Mark",src:"mark",x:"Captain {captain} lies down in the sleep chamber and adds a new mark to the wall, below the Vael's: humanity's. The chamber hums and the light inside it slows. Far in the future, someone will find this place, wake the sleeper, and hear the song. Until then, the chain holds."}
 ];
-const SITE_INFO={beacon:{label:"Vael Beacon",world:"Frozen",dist:[95,150]},archive:{label:"Vael Archive",world:"Rock",dist:[170,230]},cradle:{label:"The Cradle",world:"Temperate",dist:[260,320]},
+const SITE_INFO={chamber:{label:"The Sleeper's Chamber"},keys:{label:"The Three Keys"},song:{label:"The Song at the Hollow"},mark:{label:"The Sleeper's Chamber"},beacon:{label:"Vael Beacon",world:"Frozen",dist:[95,150]},archive:{label:"Vael Archive",world:"Rock",dist:[170,230]},cradle:{label:"The Cradle",world:"Temperate",dist:[260,320]},
   gate:{label:"Lattice Gate",near:"cradle",dist:[18,32],planets:2},gateOut:{label:"Gate Home"},unknown:{label:"Unknown"},
   generator:{label:"Hollow Generator"},fleet:{label:"Last Fleet",world:"Frozen",region:"unknown",dist:[60,105]},hollow:{label:"The Hollow",world:"Rock",region:"unknown",dist:[125,160],cls:"M"}};
 const siteRef=k=>SITE_INFO[k].label.startsWith("The ")?SITE_INFO[k].label:"the "+SITE_INFO[k].label;
 function ensureLore(){G.lore=G.lore||{found:[],sites:{},unread:0}}
 const loreNext=()=>{ensureLore();return G.lore.found.length<LORE.length?G.lore.found.length:-1};
 function loreText(i){let x=LORE[i].x;for(const k of Object.keys(SITE_INFO)){const sid=G.lore.sites[k];const s=G.systems.find(q=>q.id===sid);
-  x=x.replace(`{${k}}`,s?`${s.name} (${fmt(s.x)}, ${fmt(-s.y)})`:"an unknown place")}return x}
+  x=x.replace(`{${k}}`,s?`${s.name} (${fmt(s.x)}, ${fmt(-s.y)})`:"an unknown place")}
+  if(/\{(sleeper|marks|captain)/.test(x)){const S=sleeper();x=x.replace("{sleeper}",S.name).replace("{sleeperTitle}",S.title).replace("{marks}",String(40+chainStore().length)).replace("{lastMark}",S.mark).replace("{captain}",G.lore.markName||"your captain")}
+  return x}
 function makeLoreSite(kind){
+  if(kind==="chamber")return setupChamber();if(kind==="keys")return setupKeys();
   ensureLore();if(G.lore.sites[kind])return;
   const info=SITE_INFO[kind],r=rng(G.seed+hashStr(kind));let best=null;if(!info.dist)return;
   if(info.region==="unknown")ensureUnknown();
@@ -4109,7 +4186,7 @@ function exploreLoreSite(kind){
 }
 function showLore(i,source,count=1){
   const lines=[];for(let k=0;k<count;k++){const j=i+k;lines.push(`FRAGMENT ${j+1}: ${LORE[j].t.toUpperCase()}\n\n${loreText(j)}`)}
-  $("mTitle").textContent=source==="cradle"?"The Cradle":source==="hollow"?"The Hollow":source==="generator"?"The Field Holds":source==="unknown"?"Beyond the Lattice":"Codex fragment found";$("mText").value=lines.join("\n\n");$("mText").readOnly=true;$("mText").style.height=count>1?"300px":"200px";
+  $("mTitle").textContent=source==="chamber"?"The Sleeper":source==="keys"?"Three Keys":source==="song"?"The Song":source==="mark"?"The Mark":source==="cradle"?"The Cradle":source==="hollow"?"The Hollow":source==="generator"?"The Field Holds":source==="unknown"?"Beyond the Lattice":"Codex fragment found";$("mText").value=lines.join("\n\n");$("mText").readOnly=true;$("mText").style.height=count>1?"300px":"200px";
   $("mLoad").hidden=true;$("mCopy").hidden=true;$("modal").hidden=false;
 }
 function loreEnding(){
@@ -4123,7 +4200,8 @@ function renderCodex(){
   const el=$("codexPanel");if(!el||!G.ship)return;ensureLore();
   const L=G.lore,next=loreNext();
   let lead="";
-  if(next<0)lead=`<p class="hint" style="color:var(--green)">The story is complete for now. The Lattice holds, the Hollow's field is powered again, and the Quiet has drawn back. It is not gone.</p>`;
+  if(next<0)lead=`<p class="hint" style="color:var(--green)">The story is complete for now. The Lattice sings, the Quiet have gone back into the void, and Captain ${esc(L.markName||"your captain")} sleeps in the chamber, waiting for the next awakening.</p>`;
+  else if(["chamber","keys","song","mark"].includes(LORE[next].src))lead=sleeperLead(LORE[next].src);
   else if(next>=0){const f=LORE[next];
     if(f.src==="generator"){const s=G.systems.find(q=>q.id===L.sites.hollow);lead=`<p class="hint" style="color:var(--amber)">Next lead: repair the failing field generator at the Hollow${s?` (${esc(s.name)})`:""}. Bring ${GEN_END} t of Endurium, ${GEN_METAL} t of metal, and an engineer on duty.</p>${s?`<div class="row"><button class="sm" data-site="${s.id}">Show on star map</button></div>`:""}`}
     else if(f.src==="unknown"){const s=G.systems.find(q=>q.id===L.sites.gate);lead=s?`<p class="hint" style="color:var(--amber)">Next lead: fly to the Lattice Gate in the ${esc(s.name)} system (${fmt(s.x)}, ${fmt(-s.y)}) and go through the wormhole.</p><div class="row"><button class="sm" data-site="${s.id}">Show on star map</button></div>`:""}
@@ -4132,6 +4210,7 @@ function renderCodex(){
   el.innerHTML=`<h2>Codex · The Vael · ${L.found.length} of ${LORE.length}</h2>${lead}
     <div class="shop">${LORE.map((f,i)=>L.found.includes(i)?`<div class="item" style="grid-template-columns:1fr"><div>${i+1}. ${esc(f.t)}<div class="d" style="font-size:13px;line-height:1.45;margin-top:4px">${linkify(loreText(i))}</div></div></div>`:
       `<div class="item" style="grid-template-columns:1fr;opacity:.45"><div>${i+1}. Not yet found${f.src!=="any"?` · waits at ${siteRef(f.src)}`:""}</div></div>`).join("")}</div>`;
+  {const sh=ship();if(sh.keysAboard)el.insertAdjacentHTML("beforeend",`<p class="hint">Keys aboard: ${sh.keysAboard} of 3.</p>`)}
   el.querySelectorAll("[data-site]").forEach(b=>b.onclick=()=>{const s=G.systems.find(q=>q.id==b.dataset.site);if(sysv.open)closeSystem();selected=s;view.x=s.x;view.y=s.y;ctab="system";changed()});
   if(ctab==="codex"&&L.unread){L.unread=0}
 }
@@ -4684,7 +4763,8 @@ function scavenge(){
 function wreckHtml(){const w=enc.wreck;if(!w||w.taken)return "";const n=Object.values(w.cargo).reduce((a,b)=>a+b,0);
   return `<p class="hint" style="color:var(--text)">Wreckage drifts nearby. Your sensors read about ${n} tons of material${w.fuel?", some fuel":""}${w.relic&&enc.scanned>=60?", and that artifact signature":""}.</p>`}
 
-const shieldCut=dmg=>{const ld=ldOf();return ld.shieldsUp&&ld.shields?Math.max(1,dmg-ld.shields*3):dmg};
+const QUIET_HP=480,QUIET_DARK=.7; // the Quiet are far tougher than anything in known space, and their dark hulls soak up lasers and torpedoes
+const shieldCut=dmg=>{const ld=ldOf();let d=ld.shieldsUp&&ld.shields?Math.max(1,dmg-ld.shields*3):dmg;const t=T();if(t&&t.key==="quiet")d=Math.max(1,Math.round(d*QUIET_DARK));return d};
 const scanBtn=()=>`<button id="eScan" ${enc.scanned>=scanLevel()?"disabled":""} title="They will notice">${enc.scanned?"Scanned":"Scan ship"}</button>`;
 
 // =====================================================================
@@ -4749,7 +4829,8 @@ function hurtCrew(c,amt,cause){const sh=ship();if(!c||!sh.crew.includes(c))retur
   c.health-=Math.max(1,Math.round(amt));
   if(c.health<=0&&mLvl()&&Math.random()<mLvl()*.25){c.health=1;logMsg(`${c.name} nearly died${cause?" "+cause:""}, but the med bay pulled them back from the brink.`);return ` <b style="color:var(--amber)">${esc(c.name)} nearly died, but the med bay saved them.</b>`}
   if(c.health>0)return hpPct(c)<.25?` ${c.name} is critically injured.`:` ${c.name} was injured.`;
-  const wasCap=c.captain,who=c.original?"The Captain":`${c.name} the ${c.species}${c.role?`, your ${stationName(c.role)},`:""}`;
+  const wasCap=c.captain,who=c.captain?`Captain ${c.name}`:`${c.name} the ${c.species}${c.role?`, your ${stationName(c.role)},`:""}`;
+  if(wasCap)addToHall(c,`Died ${cause||"in the line of duty"}.`,false);
   sh.crew.splice(sh.crew.indexOf(c),1);
   logMsg(`${who} died${cause?" "+cause:""}.`);toast(`${c.original?"The Captain":c.name} has died`);
   let note=` <b style="color:var(--danger)">${esc(c.original?"The Captain":c.name)} was killed.</b>`;
@@ -4765,7 +4846,7 @@ function promoteCaptain(){const sh=ship();
   const xo=sh.crew.find(m=>m.role==="xo");
   const next=xo||sh.crew.slice().sort((a,b)=>b.skills.cha-a.skills.cha)[0];
   const how=xo?"As First Officer,":"With the most charisma aboard,";
-  next.captain=true;next.original=false;next.role="cap";next.role2=null;
+  next.captain=true;next.original=false;next.role="cap";next.role2=null;next.since=sh.day||0;
   logMsg(`${how} ${next.name} the ${next.species} takes command of the ship.${xo?" The First Officer post is now empty.":""}`);toast(`${next.name} is now Captain`);
   return ` <b style="color:var(--amber)">${esc(next.name)} takes command.</b>`;
 }
@@ -4984,7 +5065,7 @@ const QUIET_DEF={name:"Quiet",color:"#a08cff",base:-100,str:5,flee:.08,toll:0,
   ship:"a shape where the stars go out, its edges shimmering faint violet",hi:["…"],warn:["…"]};
 const inUnknown=()=>!!(G.ship&&here()&&here().unknown);
 function quietify(s,r){s.unknown=true;
-  for(const p of s.planets){p.life="None";delete p.native;if(r()<.55&&!p.minerals.includes("Endurium"))p.minerals.push("Endurium");if(r()<.3)p.ruins=true}}
+  for(const p of s.planets){p.life="None";delete p.native;if(r()<.55&&!p.minerals.includes("Endurium"))p.minerals.push("Endurium");if(r()<.3&&p.type!=="Gas giant")p.ruins=true}}
 function ensureUnknown(){
   if(G.unknown)return;ensureLore();const r=rng(G.seed+9091);const cx=Math.round(G.radius+2600),cy=0;
   const exit=makeSystem(r,G.nextId++,cx-170,cy,{planets:1,cls:"M"});quietify(exit,r);exit.vael="gateOut";exit.scanned=2;G.systems.push(exit);
@@ -4996,8 +5077,9 @@ const quietFoe=()=>{G.quiet=G.quiet||{key:"quiet",att:-100,met:false,known:true,
 function quietEncounter(sys){
   if(sys.vael==="gateOut")return false;const ward=ship().quietWard;
   const hollow=sys.vael==="hollow"&&fieldFailing();
-  if(!hollow&&Math.random()>=(ward?.15:.35))return false;
-  startEncounter(quietFoe(),false);enc.ships.length=1;enc.tgt=0;enc.videoReq=false;enc.videoTried=true;enc.noTrade=true;enc.toll=0;
+  if(G.lore&&G.lore.quietBack&&!hollow)return false;
+  if(!hollow&&Math.random()>=(ward?.15:sys.inNeb?.5:.35))return false;
+  startEncounter(quietFoe(),false);enc.ships.length=1;enc.tgt=0;enc.ships[0].hp=enc.ships[0].maxhp=QUIET_HP;enc.videoReq=false;enc.videoTried=true;enc.noTrade=true;enc.toll=0;
   enc.lines=[`<p class="hint" style="color:#b9a8ff">Your instruments go silent one by one. Something is out there, where the stars should be.</p>`];
   if(hollow){addWingmen(3,"Hostile");encLine(`<b style="color:#b9a8ff">The field flickers, and the Quiet slips through.</b> Three shapes close in.`)}
   enc.fighting=true;enc.reinfActive=false;renderEnc();return true;
@@ -5017,11 +5099,12 @@ function useGate(dir){const sh=ship();if(sh.fuel<5||enc)return;
   logMsg(dir==="in"?`You pass through the Lattice Gate into the Unknown. The stars here are dim and wrong.`:`You come back through the Lattice Gate. The stars burn bright again.`);
   toast(dir==="in"?"Entered the Unknown":"Back in known space");selected=to;view.x=to.x;view.y=to.y;
   if(dir==="in"&&loreNext()>=0&&LORE[loreNext()].src==="unknown")setTimeout(()=>exploreLoreSite("unknown"),300);
+  if(dir==="out"&&G.lore&&G.lore.recall)setTimeout(homecoming,600);
   changed();
 }
 function loreEnding2(){const sh=ship();if(G.lore.done2)return;G.lore.done2=true;sh.credits+=50000;sh.quietWard=true;
-  logMsg("The Hollow's field holds and the Quiet draws back. Your ship now carries a Lattice ward: no fuel or sensor penalty in the Unknown, and the Quiet finds you less often. The Vael record your name beside their own, and their vaults open to you: 50,000 credits.");
-  toast("The Quiet draws back");changed()}
+  logMsg("The Hollow's field holds, for now. Your ship now carries a Lattice ward: no fuel or sensor penalty in the Unknown, and the Quiet find you less often. The Vael vaults open to you: 50,000 credits. But the Lattice is still silent.");
+  toast("The field holds");changed()}
 function relayHtml(){const sh=ship(),room=Math.floor(tankCap(sh.up.tank)-sh.fuel),n=Math.min(25,room),c=900;
   return `<div class="member" style="margin-top:4px"><div class="row" style="justify-content:space-between"><h2>Radio</h2><span class="data" style="font-size:17px">Credits <b>${Math.round(sh.credits).toLocaleString()}</b></span></div>
     <p class="hint">No ordinary signal crosses the Lattice. Only an old Vael relay still answers out here.</p>
@@ -5046,7 +5129,7 @@ function ensureNebulae(){
   if(c){const v={id:1,name:"Verdant Veil",x:Math.round(c.x),y:Math.round(c.y),r:c.rad,seed:Math.floor(r()*1e6),veil:true};G.nebulae.push(v);
     const pts=[[v.x,v.y]];for(let k=0;k<400&&pts.length<7;k++){const a=r()*Math.PI*2,d=9+r()*(v.r*.82),x=v.x+Math.cos(a)*d,y=v.y+Math.sin(a)*d;if(pts.some(q=>Math.hypot(q[0]-x,q[1]-y)<11))continue;pts.push([x,y])}
     pts.forEach(([x,y],k)=>{const q=makeSystem(r,G.nextId++,x,y,{planets:rint(r,3,7),cls:k===0?"B":undefined});quietify(q,r);q.inNeb=v.id;if(k===0)q.nebCore=true;
-      for(const p of q.planets){if(r()<.4)p.ruins=true;if(r()<.4)p.minerals.push(pick(r,["Platinum","Rodnium"]))}
+      for(const p of q.planets){if(r()<.4&&p.type!=="Gas giant")p.ruins=true;if(r()<.4)p.minerals.push(pick(r,["Platinum","Rodnium"]))}
       G.systems.push(q)})}
   // plain clouds drifting through the Unknown
   for(let k=0;k<3;k++){let spot=null;for(let t=0;t<300&&!spot;t++){const a=r()*Math.PI*2,d=20+r()*170,x=Math.round(U.cx+Math.cos(a)*d),y=Math.round(U.cy+Math.sin(a)*d),rr=Math.round(18+r()*22);
@@ -5146,6 +5229,10 @@ setInterval(()=>{if(gameMode==="captain"&&G.ship&&inUnknown()&&fieldFailing()&&G
 const ION_PARTS=["Focusing Crystal","Lattice Coil","Resonance Chamber","Ion Capacitor","Emitter Array"];
 const ION_CD=14,ION_FUEL=4,ION_R=460,ION_ENG=55;
 function ensureVaelParts(){
+  if(G.lore&&G.lore.found&&G.lore.found.includes(16)&&!G.lore.sites.chamber&&G.unknown){setupChamber()}
+  // older galaxies could put ruins on gas giants, where no rover can land
+  for(const q of G.systems||[])for(const p of q.planets)if(p.type==="Gas giant"&&p.ruins&&!p.vaelSite&&p.vaelPart===undefined)p.ruins=false;
+
   if(G.vparts)return;const r=rng(G.seed+7731);const R=Math.max(130,G.radius||130);
   const ok=q=>!q.home&&!q.unknown&&!q.inNeb&&!q.deep&&!q.alien&&!q.vael&&!q.starbase;
   const cands=[];for(const q of G.systems){if(!ok(q))continue;q.planets.forEach((p,i)=>{if(p.vaelSite||p.alienOutpost||p.native||p.type==="Gas giant"||p.type==="Asteroid belt")return;
@@ -5186,7 +5273,7 @@ function ionHtml(){const sh=ship();if(!G.vparts||!G.vparts.length)return "";
 window.addEventListener("keydown",e=>{if(gameMode!=="captain"||!G.ship||typing(e)||!$("modal").hidden||land||(port&&port.open))return;
   if(e.key==="1"){e.preventDefault();toggleShields();if(!enc)renderCaptain()}else if(e.key==="2"){e.preventDefault();toggleArm();if(!enc)renderCaptain()}else if(e.key==="3"){e.preventDefault();toggleIon();if(!enc)renderCaptain()}});
 
-const VERSION="0.78"; // bump with every change
+const VERSION="0.79"; // bump with every change
 
 // =====================================================================
 // ---------- AUTOMATIC BACKUPS THAT SURVIVE CLEARING THE BROWSER ----------
@@ -5294,7 +5381,7 @@ const ABOUT=[
 <p class="hint">Version ${typeof VERSION!=="undefined"?VERSION:""}</p>`}
 ];
 // CHANGELOG:BEGIN (generated from CHANGELOG.md)
-const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.78</h3>\n<ul>\n<li><b>Stardate.</b> Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.</li>\n<li><b>Ship skins.</b> Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.</li>\n<li><b>A hidden tribute</b> to a beloved captain, waiting to be found.</li>\n<li><b>Every species has its own look.</b> The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.</li>\n<li>You can no longer colonize a planet that already has an alien colony.</li>\n<li>Friendly visitors in the starport corridor now look like their own species.</li>\n</ul>\n<h3>0.77.1</h3>\n<ul>\n<li>Updated title screen text.</li>\n</ul>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
+const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.79</h3>\n<ul>\n<li><b>Name your captain</b> when you start a new game.</li>\n<li><b>Hall of Captains</b> at your home starbase, honoring captains lost in service.</li>\n<li><b>Exploring on foot.</b> Some places the rover can't reach. Step out in a space suit and walk. Better suits are sold at the shipyard.</li>\n<li><b>New chapters in the main story.</b></li>\n<li>Ruins no longer appear on gas giants.</li>\n<li><b>Fixed:</b> pressing Enter on a planet's surface could land you again and speed up the rover.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.78</h3>\n<ul>\n<li><b>Stardate.</b> Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.</li>\n<li><b>Ship skins.</b> Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.</li>\n<li><b>A hidden tribute</b> to a beloved captain, waiting to be found.</li>\n<li><b>Every species has its own look.</b> The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.</li>\n<li>You can no longer colonize a planet that already has an alien colony.</li>\n<li>Friendly visitors in the starport corridor now look like their own species.</li>\n</ul>\n<h3>0.77.1</h3>\n<ul>\n<li>Updated title screen text.</li>\n</ul>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
 // CHANGELOG:END
 const MANUAL=[
  {t:"Welcome",h:`<h3>Welcome aboard, Captain</h3>
@@ -5340,6 +5427,7 @@ const MANUAL=[
 <h3>Your crew</h3>
 <ul>
 <li>Every crew member has seven skills (Science, Navigation, Engineering, Communications, Medicine, Weapons and Charisma) and works one station. Their skill at that station grows with use, up to their species' limit.</li>
+<li>You <b>name your captain</b> when a new game begins.</li>
 <li>The <b>Captain</b> leads, and their Charisma affects trades and first impressions. The <b>First Officer</b> covers empty stations and can hold a second post.</li>
 <li>Crew have <b>hit points</b>. Injured crew work less well. A doctor heals a little on every jump, or can treat someone directly from the Crew tab. Without a doctor the badly hurt get worse, and crew can die.</li>
 <li>If the captain falls, the First Officer takes command. If both are lost, the crew member with the most charisma steps up.</li>
@@ -5350,12 +5438,13 @@ const MANUAL=[
 <p>Dock at a starbase, then choose <b>Enter spaceport</b> to walk around. Walk left and right with A/D or the arrow keys, and press W, Up, Z or , at a doorway to go inside. Here's what you'll find:</p>
 <table>
 <tr><th>Place</th><th>What it's for</th></tr>
-<tr><td><b>Shipyard</b></td><td>Buy ship and rover upgrades and load torpedoes. Hover over an upgrade to preview it on your ship. You can also rename your ship here, fit crew quarters and a med bay, and change your ship's look: hull designs, engine glows, paint schemes, and your ship's name painted on the hull. Looks never change how the ship performs.</td></tr>
+<tr><td><b>Shipyard</b></td><td>Buy ship and rover upgrades and load torpedoes. Hover over an upgrade to preview it on your ship. You can also rename your ship here, fit crew quarters and a med bay, and change your ship's look: hull designs, engine glows, paint schemes, and your ship's name painted on the hull. Looks never change how the ship performs. The shipyard also sells better <b>space suits</b>, which carry more air.</td></tr>
 <tr><td><b>Trade Depot</b></td><td>Three counters: <i>Ship</i> (refuel, repair, medical bay, insurance), <i>Sell</i> (minerals, relics and wildlife specimens) and <i>Buy</i> (minerals).</td></tr>
 <tr><td><b>Personnel</b></td><td>Assign stations, train any skill or hit points, and hire new crew from the <i>For hire</i> list.</td></tr>
 <tr><td><b>Lounge</b></td><td>Buy a drink and talk. Spacers trade rumors and star charts, alien envoys share news from their people, and your own crew sometimes pick up new skills over a good conversation. The bartender also sells star charts, tips and other information.</td></tr>
 <tr><td><b>Operations</b></td><td>Station news, alien relations, and <i>starbase improvements</i> you can pay for: a bigger shipyard, a refinery, or a bigger lounge. Each one helps only at that starbase.</td></tr>
 <tr><td><b>Observation deck</b></td><td>A window onto the docking bay, where you can see your ship as she looks today.</td></tr>
+<tr><td><b>Hall of Captains</b></td><td>Only at your home starbase. A record of captains who have fallen in service, including any of your own.</td></tr>
 </table>
 <p class="hint">Starbase services are also on the <b>Starbase</b> tab while you're docked, if you'd rather skip the walk.</p>`},
  {t:"Colonies",h:`<h3>Visiting colonies</h3>
@@ -5381,6 +5470,7 @@ const MANUAL=[
 <li><b>Fly to a planet</b>, move into orbit, and <b>scan it</b> to learn its atmosphere, minerals, life and habitability.</li>
 <li><b>Land</b> (costs fuel) and drive your rover. Mine deposits, explore ruins, and stun and load animals for study. Drive back to the lander to unload.</li>
 </ol>
+<p class="hint">A few places can't be reached by rover. When the <b>Disembark</b> button appears, a crew member can step out in a space suit and walk the rest of the way. Watch the air gauge: the suit refills only near the rover.</p>
 <h3>Making a living</h3>
 <ul>
 <li><b>Survey data</b> from scans sells automatically when you dock.</li>
@@ -5424,6 +5514,8 @@ const MANUAL=[
 <tr><td></td><td>Z or ,</td><td>Mine, explore ruins, load animals</td></tr>
 <tr><td></td><td>X or .</td><td>Fire the stunner</td></tr>
 <tr><td></td><td>C or /</td><td>Fire a lethal shot</td></tr>
+<tr><td>On foot</td><td>W A S D, arrow keys or click</td><td>Walk (use the Disembark button to step out, and again to return to the rover)</td></tr>
+<tr><td></td><td>Z or ,</td><td>Examine or work on what's in front of you</td></tr>
 <tr><td>Spaceport</td><td>A / D or left / right arrows</td><td>Walk</td></tr>
 <tr><td></td><td>W, Up, Z or ,</td><td>Go through a doorway</td></tr>
 <tr><td></td><td>Esc</td><td>Leave a room / the spaceport</td></tr>
@@ -5830,6 +5922,7 @@ function extrasHtml(){const e=ext(),sh=ship();
     <div class="item"><div>Med bay <span class="pips">${"■".repeat(m)}${"□".repeat(2-m)}</span><div class="d">${m?`Now: ${MEDBAY[m-1].d}. Your doctor heals ${m*50}% more, and ${m*25}% of fatal injuries are pulled back from the brink.`:"Now: a first-aid locker."}${mn?`<br>Next: ${mn.d}`:""}</div></div>
       <button data-ext="medbay" ${!mn||sh.credits<extCost(mn.cost)?"disabled":""}>${mn?extCost(mn.cost).toLocaleString()+" cr":"Maxed"}</button></div></div>
     ${e.hull==="flagship"?`<div class="member" style="border-color:#e0b84a66;background:#1a1018;margin-top:8px"><p style="margin:0;color:#f0d890;font-style:italic">${TRIBUTE_TEXT}</p></div>`:""}
+    ${(()=>{const sl=e.suit||0,nx=SUIT[sl+1];return `<div class="shop" style="margin-top:4px"><div class="item"><div>Space suit <span class="pips">${"■".repeat(sl)}${"□".repeat(2-sl)}</span><div class="d">Now: ${SUIT[sl].d} (${SUIT[sl].o2} air).${nx?`<br>Next: ${nx.d} (${nx.o2} air)`:""}</div></div><button data-ext="suit" ${!nx||sh.credits<extCost(nx.cost)?"disabled":""}>${nx?extCost(nx.cost).toLocaleString()+" cr":"Maxed"}</button></div></div>`})()}
     <h2 style="margin-top:6px">Hull design</h2><p class="hint">Looks only. Your ship flies and fights exactly the same. Designs you've bought are yours to switch back to for free.</p><div class="row" style="gap:4px;flex-wrap:wrap">${skinBtns("hull",HULLS)}</div>
     <h2 style="margin-top:6px">Engine glow</h2><div class="row" style="gap:4px;flex-wrap:wrap">${skinBtns("glow",GLOWS)}</div>
     <h2 style="margin-top:6px">Paint and name</h2><div class="row" style="gap:4px;flex-wrap:wrap">${paints}</div>
@@ -5846,7 +5939,8 @@ function wireExtras(root){const sh=ship(),e=ext();
       e[kind]=k;toast(p.name);changed()};
     if(art){const show=()=>{drawShipArt(art,sh.up,{name:sh.name,[kind]:k});const n=root.querySelector(".shipArtNote");if(n)n.textContent=`Preview: ${p.name}`},hide=()=>{drawShipArt(art,sh.up,{name:sh.name});const n=root.querySelector(".shipArtNote");if(n)n.textContent=n.dataset.note};
       b.addEventListener("mouseenter",show);b.addEventListener("mouseleave",hide);b.addEventListener("touchstart",show,{passive:true});b.addEventListener("touchend",hide)}});
-  root.querySelectorAll("[data-ext]").forEach(b=>b.onclick=()=>{const k=b.dataset.ext,list=k==="quarters"?QUARTERS:MEDBAY,n=list[e[k]];if(!n)return;const c=extCost(n.cost);if(sh.credits<c)return;
+  root.querySelectorAll("[data-ext]").forEach(b=>b.onclick=()=>{const k=b.dataset.ext;if(k==="suit"){const nx=SUIT[(e.suit||0)+1];if(!nx)return;const c=extCost(nx.cost);if(sh.credits<c)return;sh.credits-=c;e.suit=(e.suit||0)+1;logMsg(`Bought a new space suit: ${nx.d.toLowerCase()}.`);toast("Space suit upgraded");changed();return}
+    const list=k==="quarters"?QUARTERS:MEDBAY,n=list[e[k]];if(!n)return;const c=extCost(n.cost);if(sh.credits<c)return;
     sh.credits-=c;e[k]++;logMsg(`Installed ${k==="quarters"?"crew quarters":"a med bay"} level ${e[k]}: ${n.d.toLowerCase()}.`);toast(k==="quarters"?"Crew quarters upgraded":"Med bay upgraded");changed()});
   root.querySelectorAll("[data-paint]").forEach(b=>{const k=b.dataset.paint,p=PAINTS[k],art=root.querySelector("canvas.shipArt");
     b.onclick=()=>{const c=(p.hidden&&(e.owned||{})["paint:"+k])?0:extCost(p.cost);if(sh.credits<c||e.paint===k)return;sh.credits-=c;e.paint=k;logMsg(`The yard repainted your ship ${p.name.toLowerCase()}${c?` for ${c} credits`:""}.`);toast("Repainted");changed()};
@@ -5911,6 +6005,243 @@ function toggleInsurance(){const e=ext(),sh=ship();
   else{if(sh.credits<INS_WEEK)return;sh.credits-=INS_WEEK;e.ins={since:sh.day||0,next:(sh.day||0)+7};logMsg(`Insured. ${INS_WEEK} credits a week, paid automatically.`);toast("Insured")}changed()}
 function insuranceTick(){const sh=ship();if(!sh||!sh.ext||!sh.ext.ins)return;const e=sh.ext,day=sh.day||0;
   while(e.ins&&day>=e.ins.next){if(sh.credits>=INS_WEEK){sh.credits-=INS_WEEK;e.ins.next+=7}else{e.ins=null;logMsg("You couldn't make an insurance payment, so your policy lapsed.");toast("Insurance lapsed")}}}
+
+// =====================================================================
+// ---------- THE SLEEPER (0.79): the chamber in the Veil, the three keys, the song, the captain's choice ----------
+// =====================================================================
+const SURNAMES=["Reyes","Okafor","Lindqvist","Tanaka","Moreau","Haldane","Varga","Achebe","Kowalski","Sato","Bianchi","Mbeki","Novak","Castell","Ishida","Ferreira","Ward","Quinlan","Delacroix","Rahman"];
+const XYY={name:"Xyymenni",title:"Captain of the 5th Fleet",sp:"Vael",people:"the Vael",mark:"the Vael's circle crossed by three lines",seed:5,vael:true};
+// ---- naming your captain
+function captainSuggestion(){const r=Math.random;return `${pick(r,FIRST)} ${pick(r,SURNAMES)}`}
+function askCaptainName(){const sh=ship(),cap=sh.crew.find(c=>c.captain);if(!cap)return;
+  sh.needName=false; // ask once; closing the box keeps the current name
+  openModal("Name your captain",captainSuggestion(),v=>{v=(v||"").trim().slice(0,32);if(!v)return;cap.name=v;sh.needName=false;$("modal").hidden=true;logMsg(`Captain ${v} takes command of the ${sh.name}.`);changed()});
+  $("mLoad").textContent="Take command";$("mText").readOnly=false;$("mText").style.height="44px";$("mCopy").hidden=true;
+  $("mNote").hidden=false;$("mNote").textContent="This name follows your captain through the whole game. Keep the suggestion or type your own.";setTimeout(()=>{try{$("mText").select()}catch{}},50)}
+
+// ---- the Hall of Captains: fallen captains from every game, plus a few from before your time
+const HALL_KEY="starforge.hall",CHAIN_KEY="starforge.chain";
+const HALL_SEED=[
+  {id:"h-okonkwo",suit:"#7a4ea3",name:"Amara Okonkwo",sp:"Human",seed:301,ship:"ISS Meridian",served:"Before your time",how:"Held her ship between a Skarr raiding wing and a crippled colony transport until the transport reached jump range. The Meridian did not.",old:true},
+  {id:"h-thal",name:"Thal Brennick",sp:"Vorrn",seed:417,ship:"Iron Promise",served:"Before your time",how:"Charted 212 worlds on the old frontier. Lost with all hands in an ion storm while answering a distress call that turned out to be real.",old:true},
+  {id:"h-ishe",name:"Ishe of the Many Voices",sp:"Ossari",seed:523,ship:"Gilded Ledger",served:"Before your time",how:"Talked three warring clans into a truce over a single dinner. Poisoned at the fourth. The truce held.",old:true},
+  {id:"h-varn",suit:"#4b5d7a",name:"Corin Varn",sp:"Human",seed:611,ship:"ISS Long Patience",served:"Before your time",how:"First human captain to reach the Lattice Gate. Went through alone. The ship came back on autopilot, his last log unfinished.",old:true}];
+function hallStore(){try{return JSON.parse(localStorage.getItem(HALL_KEY)||"[]")}catch{return []}}
+function hallSave(list){try{localStorage.setItem(HALL_KEY,JSON.stringify(list.slice(-200)))}catch{}}
+function hallEntries(){const seen=new Set(),out=[];for(const e of [...(G.hallLocal||[]),...hallStore()])if(!seen.has(e.id)){seen.add(e.id);out.push(e)}
+  out.sort((a,b)=>(b.honor?1:0)-(a.honor?1:0)||(b.at||0)-(a.at||0));return out.concat(HALL_SEED)}
+function captainStats(){const sh=ship();let charted=0;G.systems.forEach(s=>{if(s.scanned&&!s.home)charted++});
+  return {charted,colonies:colonyCount(),met:(G.aliens||[]).filter(a=>a.met).length,friends:(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)==="Friendly").length}}
+function addToHall(c,how,honor){if(!c||!G.ship)return;const sh=ship(),st=captainStats();
+  const e={id:`c-${G.gid||"g"}-${c.id}`,name:c.name,sp:c.species,seed:c.id,ship:sh.name,served:`Stardates ${stardate(c.since||0)} to ${stardate(sh.day)}`,how,honor:!!honor,at:Date.now(),
+    stats:`${st.charted} systems charted · ${st.colonies} colonies founded · ${st.met} peoples met`};
+  G.hallLocal=(G.hallLocal||[]).filter(x=>x.id!==e.id);G.hallLocal.push(e);const all=hallStore().filter(x=>x.id!==e.id);all.push(e);hallSave(all);logMsg(`${c.name}'s name was added to the Hall of Captains.`)}
+function hallHtml(){const list=hallEntries();
+  return `<p class="hint" style="color:var(--text)">A quiet room off the concourse. Portraits line the walls, each with a small brass plate. Visitors speak softly here.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">${list.map(e=>`<div class="member" style="${e.honor?"border-color:#e0c070;background:#1a1610":""}">
+      <div class="row" style="gap:10px;align-items:flex-start;flex-wrap:nowrap"><canvas data-hsp="${esc(e.sp)}" data-hseed="${e.seed}" data-hsuit="${esc(e.suit||"")}" style="width:64px;height:76px;flex:none;border:1px solid var(--line)" aria-label="${esc(e.name)}"></canvas>
+      <div style="min-width:0"><b style="color:${e.honor?"#f0d890":"var(--text)"}">${e.honor?"Captain ":""}${esc(e.name)}</b>${e.honor?' <span class="tag" style="color:#f0d890">The Sleeper</span>':""}
+      <div class="hint">${esc(e.sp)} · ${esc(e.ship)} · ${esc(e.served)}</div>${e.stats?`<div class="hint">${esc(e.stats)}</div>`:""}
+      <p class="hint" style="color:var(--text);margin-top:4px">${esc(e.how)}</p></div></div></div>`).join("")}</div>`}
+function wireHall(el){el.querySelectorAll("canvas[data-hsp]").forEach(cv=>drawPortrait(cv,{sp:cv.dataset.hsp,col:speciesColor(cv.dataset.hsp),seed:+cv.dataset.hseed,player:!cv.dataset.hsuit,suit:cv.dataset.hsuit||undefined}))}
+
+// ---- the chain: who sleeps in the chamber, carried from game to game
+function chainStore(){try{return JSON.parse(localStorage.getItem(CHAIN_KEY)||"[]")}catch{return []}}
+function chainPush(e){const all=chainStore().filter(x=>x.gid!==e.gid);all.push(e);try{localStorage.setItem(CHAIN_KEY,JSON.stringify(all.slice(-50)))}catch{}}
+function pickSleeper(){const prev=chainStore().filter(x=>x.gid!==G.gid);const last=prev[prev.length-1];
+  if(!last)return {...XYY};return {name:last.name,title:`once Captain of the ${last.ship}`,sp:last.sp,people:"humanity",mark:"humanity's mark",seed:last.seed,vael:false,from:last.gid}}
+const sleeper=()=>{ensureLore();return G.lore.sleeper||(G.lore.sleeper=pickSleeper())};
+
+// ---- story sites: the chamber at the Veil's heart, and the keys in the other three clouds
+function setupChamber(){ensureLore();if(G.lore.sites.chamber)return;ensureUnknown();ensureNebulae();
+  const core=G.systems.find(q=>q.nebCore);if(!core)return;const r=rng(G.seed+777);
+  let i=core.planets.findIndex(p=>p.type!=="Gas giant"&&p.type!=="Asteroid belt");if(i<0){i=0;core.planets[0].type="Rock";randomizePlanet(r,core.planets[0])}
+  const p=core.planets[i];p.vaelSite="chamber";p.ruins=true;core.vael=core.vael||"chamber";G.lore.sites.chamber=core.id;sleeper();
+  logMsg(`New lead: a faint power signal at the heart of the ${nebOf(core)?nebOf(core).name:"Verdant Veil"}, on ${p.name}. Only a pathfinder can take you there.`)}
+const KEY_KIND=["walk","derelict","song"];
+function setupKeys(){ensureLore();if(G.lore.keys)return;ensureNebulae();const r=rng(G.seed+888);
+  const clouds=(G.nebulae||[]).filter(n=>!n.veil).slice(0,3);G.lore.keys=[];
+  const kindOf=n=>/Verdigris/.test(n.name)?"walk":/Emerald/.test(n.name)?"derelict":/Jade/.test(n.name)?"song":null;
+  clouds.sort((a,b)=>KEY_KIND.indexOf(kindOf(a)||"x")-KEY_KIND.indexOf(kindOf(b)||"x"));
+  clouds.forEach((n,k)=>{let q=G.systems.find(s=>s.unknown&&Math.hypot(s.x-n.x,s.y-n.y)<6);
+    if(!q){q=makeSystem(r,G.nextId++,n.x,n.y,{planets:rint(r,2,4)});quietify(q,r);G.systems.push(q)}
+    q.keySite=k;q.scanned=Math.max(q.scanned||0,1);
+    if(KEY_KIND[k]==="walk"){let i=q.planets.findIndex(p=>p.type!=="Gas giant"&&p.type!=="Asteroid belt");if(i<0){i=0;q.planets[0].type="Desert";randomizePlanet(r,q.planets[0])}q.planets[i].vaelSite="key0";q.planets[i].ruins=true}
+    G.lore.keys.push({k,kind:KEY_KIND[k],sys:q.id,neb:n.name,got:false})});
+  logMsg(`New leads: three keys, hidden in the ${G.lore.keys.map(x=>x.neb).join(", the ")}.`)}
+const keysGot=()=>G.lore&&G.lore.keys?G.lore.keys.filter(x=>x.got).length:0;
+function gainKey(k){const K=G.lore&&G.lore.keys&&G.lore.keys[k];if(!K||K.got)return;K.got=true;const sh=ship();sh.keysAboard=(sh.keysAboard||0)+1;
+  const marks=["a spiral of seven dots","two crescents back to back","a single unbroken line that turns on itself"];
+  logMsg(`You recover a key from the ${K.neb}: a crystal tuning fork, humming faintly, marked with ${marks[k]}. (${keysGot()} of 3)`);toast(`Key ${keysGot()} of 3`);
+  if(keysGot()>=3&&loreNext()>=0&&LORE[loreNext()].src==="keys")setTimeout(()=>exploreLoreSite("keys"),400);changed()}
+
+// ---- the song: the Hollow's chord pattern changes with each awakening
+function songPattern(n,len,salt){const r=rng(G.seed+chainStore().length*131+(salt||0));const keys=["Z","X","C"];const out=[];
+  for(let p=0;p<n;p++){const ph=[];for(let i=0;i<len;i++)ph.push(pick(r,keys));out.push(ph)}return out}
+
+// ---- a timed Z / X / C sequence: used to repair machines and to make the Lattice sing
+const KEYMAP={z:"Z",",":"Z",x:"X",".":"X",c:"C","/":"C"};
+let rhythm=null;
+function startRhythm(o){if(rhythm)return;
+  rhythm={...o,p:0,i:0,t:0,phrases:o.phrases};const el=$("rhythm");el.hidden=false;renderRhythm();
+  let last=performance.now();const loop=now=>{if(!rhythm)return;const dt=Math.min(.05,(now-last)/1000);last=now;rhythm.t+=dt;
+    if(rhythm.t>=rhythm.win){missRhythm("Too slow.")}if(rhythm)renderRhythmBar();if(rhythm)rhythm.raf=requestAnimationFrame(loop)};rhythm.raf=requestAnimationFrame(loop)}
+function renderRhythm(){const R=rhythm,el=$("rhythm");if(!R)return;const ph=R.phrases[R.p];
+  el.innerHTML=`<div class="rBox" style="border-color:${R.color||"var(--cyan)"}"><h2 style="color:${R.color||"var(--cyan)"}">${esc(R.title)}</h2><p class="hint" style="color:var(--text)">${esc(R.desc)}</p>
+    <div class="hint">${esc(R.stepName||"Step")} ${R.p+1} of ${R.phrases.length}${R.status?` · ${R.status()}`:""}</div>
+    <div class="rKeys">${ph.map((k,i)=>`<span class="rKey${i<R.i?" done":i===R.i?" now":""}">${k}</span>`).join("")}</div>
+    <div class="rBar"><i id="rBarI"></i></div><p class="hint" id="rMsg">${esc(R.msg||"Press the highlighted key: Z or , · X or . · C or /")}</p>
+    <div class="row" style="justify-content:flex-end"><button class="sm" id="rQuit">${esc(R.quitLabel||"Stop")}</button></div></div>`;
+  $("rQuit").onclick=()=>endRhythm(false,true)}
+function renderRhythmBar(){const b=$("rBarI");if(b&&rhythm)b.style.width=`${Math.max(0,100-rhythm.t/rhythm.win*100)}%`}
+function missRhythm(why){const R=rhythm;R.i=0;R.t=0;R.msg=`${why} Start this step again.`;if(R.onMiss&&R.onMiss()===false){endRhythm(false);return}if(rhythm)renderRhythm()}
+function endRhythm(ok,quit){const R=rhythm;if(!R)return;cancelAnimationFrame(R.raf);rhythm=null;$("rhythm").hidden=true;if(ok)R.onDone&&R.onDone();else R.onFail&&R.onFail(quit)}
+window.addEventListener("keydown",e=>{if(!rhythm)return;const k=KEYMAP[e.key&&e.key.toLowerCase()];if(e.key==="Escape"){e.preventDefault();e.stopImmediatePropagation();endRhythm(false,true);return}
+  if(!k)return;e.preventDefault();e.stopImmediatePropagation();const R=rhythm,want=R.phrases[R.p][R.i];
+  if(k!==want){missRhythm("Wrong key.");return}
+  R.i++;R.t=0;R.msg="";if(R.i>=R.phrases[R.p].length){R.onPhrase&&R.onPhrase(R.p);R.p++;R.i=0;if(R.p>=R.phrases.length){endRhythm(true);return}R.msg="Good. Next."}
+  renderRhythm()},true);
+
+// ---- on foot: one crew member leaves the rover in a space suit
+const SUIT=[{cost:0,o2:60,d:"Standard suit: about a minute of air"},{cost:1500,o2:100,d:"Long-range tanks: more air"},{cost:3500,o2:150,d:"Expedition suit: the most air, insulated against heat and cold"}];
+const suitLvl=()=>G&&G.ship?(ext().suit||0):0;
+const evaPlanet=p=>p&&(p.vaelSite==="chamber"||p.vaelSite==="key0");
+function walkerPick(){const sh=ship();return crewIn("eng")||sh.crew.find(c=>c.captain)||sh.crew[0]}
+function disembark(){const L=land;if(!L||L.foot||L.stalled)return;const c=walkerPick();if(!c)return;const o2=SUIT[suitLvl()].o2;
+  L.foot={x:L.rover.x+1.2,y:L.rover.y+.4,a:0,o2,max:o2,who:c.id,name:c.name,moving:false};landMsg(`${c.name} climbs out of the rover in a space suit. Watch the oxygen.`);renderLandHud()}
+function walker(){const L=land;return L&&L.foot?ship().crew.find(c=>c.id===L.foot.who):null}
+function reEmbark(msg){const L=land;if(!L||!L.foot)return;L.foot=null;landMsg(msg||"Back in the rover. The suit's tanks refill.");renderLandHud()}
+const footOk=(x,y)=>{const L=land;if(x<1||y<1||x>LW-2||y>LH-2)return 0;const k=Math.floor(y)*LW+Math.floor(x);return L.SPD[k]>0?1:(L.FOOT&&L.FOOT[k])?.55:0};
+function tickFoot(dt){const L=land,F=L.foot,c=walker();if(!c){reEmbark("Your crew walks back to the rover.");return}
+  let dx=(L.keys.r?1:0)-(L.keys.l?1:0),dy=(L.keys.d?1:0)-(L.keys.u?1:0);if(F.target&&!dx&&!dy){const ux=F.target[0]-F.x,uy=F.target[1]-F.y,d=Math.hypot(ux,uy);if(d<.4)F.target=null;else{dx=ux/d;dy=uy/d}}else if(dx||dy)F.target=null;
+  F.moving=false;if(dx||dy){const len=Math.hypot(dx,dy);dx/=len;dy/=len;const sp=footOk(F.x+dx*.5,F.y+dy*.5);
+    if(sp>0){const v=2.8*sp*dt;F.x+=dx*v;F.y+=dy*v;F.a=Math.atan2(dy,dx);F.moving=true}
+    else if(!L.bumpT||L.t-L.bumpT>1.2){L.bumpT=L.t;landMsg("Even on foot, there's no way across there.");F.target=null}}
+  const hot=L.p.type==="Molten"||L.p.type==="Frozen",bad=/toxic|none|thin|corrosive/i.test(L.p.atmo||"");
+  const drain=(1+(bad?.4:0)+(hot?(suitLvl()>=2?.1:.5):0))*(F.moving?1:.6);F.o2=Math.max(0,F.o2-drain*dt);
+  if(F.o2<=0){F.hurtT=(F.hurtT||0)+dt;if(F.hurtT>=1){F.hurtT=0;const note=hurtCrew(c,4,"when their suit ran out of air");if(!ship().crew.includes(c)){reEmbark("The suit's tanks ran dry. The crew carries the body back to the rover.");changed();return}if(note&&Math.random()<.3)landMsg(`${c.name} is out of air and getting hurt! Get back to the rover.`)}}
+  if(Math.hypot(F.x-L.rover.x,F.y-L.rover.y)<1.6&&F.o2<F.max*.98&&!F.moving)F.o2=Math.min(F.max,F.o2+dt*20);
+  revealFoot()}
+function revealFoot(){const L=land,F=L.foot;for(const d of L.ruins)if(Math.hypot(d.x-F.x,d.y-F.y)<9)L.seen.add(d.id)}
+function nearFoot(){const L=land,F=L.foot;if(Math.hypot(F.x-L.rover.x,F.y-L.rover.y)<1.8)return {kind:"rover"};
+  const r=L.ruins.find(d=>d.vael&&Math.hypot(d.x-F.x,d.y-F.y)<1.8);if(r)return {kind:"site",o:r};return null}
+function footAction(){const n=nearFoot();if(!n)return;if(n.kind==="rover"){reEmbark();return}
+  const v=n.o.vael;if(v==="chamber")chamberAction(n.o);else if(v==="key0")keyWalkAction(n.o)}
+function drawWalker(c,P,cs){const L=land,F=L.foot;if(!F)return;const[x,y]=P(F.x,F.y);
+  const cone=c.createRadialGradient(x,y,0,x,y,cs*4);cone.addColorStop(0,"rgba(255,245,210,.22)");cone.addColorStop(1,"rgba(255,245,210,0)");c.fillStyle=cone;c.beginPath();c.arc(x,y,cs*4,0,Math.PI*2);c.fill();
+  c.save();c.translate(x,y);c.rotate(F.a);const s=cs*.45;c.fillStyle="#e8ecf2";c.beginPath();c.ellipse(0,0,s*1.1,s*.8,0,0,Math.PI*2);c.fill();c.fillStyle="#9aa4b4";c.fillRect(-s*1.3,-s*.5,s*.5,s);
+  c.fillStyle="#ffb347";c.beginPath();c.ellipse(s*.5,0,s*.45,s*.55,0,0,Math.PI*2);c.fill();c.fillStyle="#2a3a50";c.beginPath();c.ellipse(s*.7,0,s*.22,s*.35,0,0,Math.PI*2);c.fill();c.restore();
+  if(F.o2<F.max*.3){c.strokeStyle=`rgba(255,107,107,${.5+.5*Math.sin(L.t*8)})`;c.lineWidth=2;c.beginPath();c.arc(x,y,cs*.9,0,Math.PI*2);c.stroke();c.lineWidth=1}}
+// the collapsed ridge around a site: the rover can't cross it, a person on foot can
+function ridgeAround(out,p){const tgt=out.ruins.find(d=>d.vael==="chamber"||d.vael==="key0");if(!tgt)return;const FOOT=new Uint8Array(LW*LH);
+  const cx=tgt.x,cy=tgt.y,c=out.off.getContext("2d"),R=out.RES,rr=rng(Math.floor(cx*31+cy*17));
+  for(let y=Math.floor(cy-7);y<=cy+7;y++)for(let x=Math.floor(cx-7);x<=cx+7;x++){if(x<1||y<1||x>LW-2||y>LH-2)continue;const d=Math.hypot(x+.5-cx,y+.5-cy),k=y*LW+x;
+    if(d>=3.4&&d<=5.6){out.SPD[k]=0;FOOT[k]=1;for(let n=0;n<3;n++){const px=(x+rr())*R,py=(y+rr())*R,s=(1+rr()*1.6)*R*.5;c.fillStyle=rr()<.5?"rgba(40,34,30,.85)":"rgba(90,80,70,.85)";c.beginPath();c.ellipse(px,py,s,s*.7,rr()*3,0,Math.PI*2);c.fill()}}
+    else if(d<3.4&&out.SPD[k]<=0)FOOT[k]=1}
+  out.FOOT=FOOT;out.ridge={x:cx,y:cy}}
+
+// ---- the chamber: wake the sleeper, and later, take their place
+function chamberAction(site){const n=loreNext(),src=n>=0?LORE[n].src:null;
+  if(src==="chamber"){const c=walker(),eng=c?c.skills.eng:20;
+    startRhythm({title:"The sleep chamber",desc:"The chamber's power has nearly failed. Three faults glow on the machine. Fix each one before the suit's air runs out.",stepName:"Fault",color:"#96ffb4",
+      phrases:songPattern(3,4,17),win:1.4*(1+eng/120),status:()=>land&&land.foot?`Oxygen ${Math.round(land.foot.o2)}`:"",
+      onMiss:()=>{if(land&&land.foot){land.foot.o2=Math.max(0,land.foot.o2-8)}return true},
+      onDone:()=>{gainXP("eng",30);landMsg("The chamber's power steadies. Someone inside is waking up.");setTimeout(()=>{awakening();renderLandHud()},300)},
+      onFail:()=>landMsg("You step back from the machine. Its faults still glow.")});return}
+  if(src==="mark"){chamberChoice();return}
+  if(src==="keys"||src==="song"){landMsg(`${sleeper().name} is gone. The chamber is dark and still, waiting.`);return}
+  landMsg("The chamber is sealed. Its walls are covered in marks no one can read.")}
+function awakening(){const S=sleeper();exploreLoreSite("chamber");
+  setTimeout(()=>{storyScene({title:S.vael?`${S.name}, ${S.title}`:`${S.name}, ${S.title}`,figure:{sp:S.sp,seed:S.seed,captain:true,fading:true,player:!S.vael},
+    lines:[S.vael?"“You came. Then my fleet held long enough.”":"“You came. Then the song held, all this time.”",
+      "“They are drawn to the stillness. When the Lattice sleeps, they come through the void and feed. Once they breach it, nothing can stop them.”",
+      "“We drove them back, like so many before us. Now it is your turn. Three keys, one song, one place.”",
+      `“The keys lie in the ${(G.lore.keys||[]).map(k=>k.neb).join(", the ")}. Take them to the Hollow. Make the Lattice sing.”`,
+      S.vael?"“Hurry.” The light in the Vael captain's eyes goes out, and the chamber falls dark.":"“Hurry.” The light in the old captain's eyes goes out, and the chamber falls dark."],
+    button:"Close"})},600)}
+function chamberChoice(){const sh=ship(),cap=sh.crew.find(c=>c.captain);if(!cap){landMsg("Someone must take the chamber, but there is no captain to decide.");return}
+  const others=sh.crew.filter(c=>!c.captain);const vol=others.length?pick(Math.random,others):null;
+  storyScene({title:"The sleep chamber",figure:{sp:cap.species,seed:cap.id,player:true},
+    lines:["The chamber hums, ready. Someone must sleep here until the next awakening, and carry the song.",
+      vol?`${vol.name} steps forward. “Let me. You're needed on the ship.”`:"Your crew looks at one another. No one speaks.",
+      `“No.” ${cap.name} puts a hand on ${vol?vol.name+"'s":"the chamber's"} ${vol?"shoulder":"edge"}. “This one's mine. Take care of the ship.”`],
+    button:"Take your place",cancel:"Not yet",onOk:()=>sacrifice(cap)})}
+function sacrifice(cap){const sh=ship();ensureLore();G.lore.markName=cap.name;
+  addToHall(cap,`Entered the sleep chamber at the heart of the Verdant Veil to carry the Lattice's song to the next awakening. The galaxy tells the story in every port.`,true);
+  chainPush({gid:G.gid||"g",name:cap.name,sp:cap.species,seed:cap.id,ship:sh.name,at:Date.now()});
+  G.legend={name:cap.name,ship:sh.name,sp:cap.species,day:sh.day||0};
+  const wasWalker=land&&land.foot&&land.foot.who===cap.id;
+  sh.crew.splice(sh.crew.indexOf(cap),1);exploreLoreSite("mark");
+  const note=promoteCaptain().replace(/<[^>]+>/g,"");G.lore.recall=true;
+  logMsg(`Captain ${cap.name} entered the sleep chamber and added humanity's mark to the wall.${note}`);
+  if(wasWalker)reEmbark(`${cap.name} stays behind in the chamber. The crew walks back to the rover in silence.`);
+  toast(`Captain ${cap.name} sleeps`);changed()}
+function keyWalkAction(site){const K=G.lore.keys&&G.lore.keys[0];if(!K){landMsg("Old ruins. Nothing here hums.");return}if(K.got){landMsg("The cradle where the key lay is empty.");return}
+  land.ruins=land.ruins.filter(x=>x!==site);markDone(land.p,site.id);gainKey(0);landMsg(`You lift the key from its cradle in the ruins. It hums against your glove.`)}
+
+// ---- a short story scene: a figure, a few lines, a button
+function storyScene(o){const el=$("story");el.hidden=false;
+  el.innerHTML=`<div class="sBox"><canvas id="sFig" style="width:140px;height:170px;flex:none;border:1px solid var(--line)"></canvas><div style="min-width:0;flex:1"><h2>${esc(o.title)}</h2>${o.lines.map(l=>`<p style="margin:0 0 8px">${esc(l)}</p>`).join("")}
+    <div class="row" style="justify-content:flex-end;gap:6px">${o.cancel?`<button id="sNo">${esc(o.cancel)}</button>`:""}<button class="primary" id="sOk">${esc(o.button||"Close")}</button></div></div></div>`;
+  if(o.figure)requestAnimationFrame(()=>drawPortrait($("sFig"),{...o.figure,col:speciesColor(o.figure.sp)}));
+  $("sOk").onclick=()=>{el.hidden=true;o.onOk&&o.onOk()};const n=$("sNo");if(n)n.onclick=()=>{el.hidden=true}}
+
+// ---- the system screens for the keys and the song
+function keySiteHtml(s){if(s.keySite===undefined||!G.lore||!G.lore.keys)return "";const K=G.lore.keys[s.keySite];if(!K)return "";
+  if(K.got)return `<div class="member" style="border-color:#96ffb4"><h2 style="color:#96ffb4">Key recovered</h2><p class="hint">The key from the ${esc(K.neb)} is aboard.</p></div>`;
+  if(K.kind==="walk")return `<div class="member" style="border-color:#96ffb4"><h2 style="color:#96ffb4">A key in the ${esc(K.neb)}</h2><p class="hint" style="color:var(--text)">A faint hum rises from ruins on ${esc(s.planets.find(p=>p.vaelSite==="key0").name)}. The ground around them has collapsed; you'll have to go the last stretch on foot.</p></div>`;
+  if(K.kind==="derelict")return `<div class="member" style="border-color:#96ffb4"><h2 style="color:#96ffb4">A derelict in the ${esc(K.neb)}</h2><p class="hint" style="color:var(--text)">An ancient ship drifts here, older than the Vael, and the hum of a key comes from inside. Something else is out there in the murk, waiting.</p><div class="row"><button class="primary" id="keyBoard">Approach the derelict</button></div></div>`;
+  const sel=(G.aliens||[]).find(a=>a.key==="selenn"&&a.met&&stanceOf(a.att)!=="Hostile");
+  return `<div class="member" style="border-color:#96ffb4"><h2 style="color:#96ffb4">A song-lock in the ${esc(K.neb)}</h2><p class="hint" style="color:var(--text)">A crystal vault turns slowly in the cloud, a key inside it. It answers only to song.${sel?" The Selenn Choir know this song.":" Only the Selenn are said to know it by heart. You could try to play it yourself."}</p>
+    <div class="row" style="gap:6px">${sel?`<button class="primary" id="keySelenn">Ask the Selenn to sing</button>`:""}<button ${sel?"":'class="primary"'} id="keySong">Play the song yourself</button></div></div>`}
+function wireKeySite(el,s){const on=(id,f)=>{const b=el.querySelector("#"+id);if(b)b.onclick=f};
+  on("keyBoard",()=>{if(enc)return;startEncounter(quietFoe(),false);enc.ships.length=1;enc.tgt=0;enc.ships[0].hp=enc.ships[0].maxhp=QUIET_HP;addWingmen(2,"Hostile");enc.videoReq=false;enc.videoTried=true;enc.noTrade=true;enc.toll=0;enc.fighting=true;enc.reinfActive=false;enc.keyAfter=s.keySite+1;
+    enc.lines=[`<p class="hint" style="color:#b9a8ff">As you close on the derelict, two shapes slide out of the murk, then a third. They were waiting.</p>`];renderEnc();changed()});
+  on("keySelenn",()=>{const a=(G.aliens||[]).find(x=>x.key==="selenn");if(a)changeAtt(a,3);gainKey(2);logMsg("The Selenn Choir sing over the radio. The vault opens like a flower, and the key drifts out.")});
+  on("keySong",()=>startRhythm({title:"The song-lock",desc:"Play the vault's song, note for note. The Selenn make it sound easy.",stepName:"Verse",color:"#7fe3ff",phrases:songPattern(3,7,29),win:1.1*(1+eff("cha")/200),
+    onMiss:()=>true,onDone:()=>{gainXP("cha",10);gainKey(2);logMsg("The last note rings out. The vault opens, and the key drifts out.")},onFail:()=>{}}))}
+function songHtml(s){if(s.vael!=="hollow"||!G.lore)return "";const n=loreNext();if(n<0||LORE[n].src!=="song")return "";
+  return `<div class="member" style="border-color:#ffe7a8"><h2 style="color:#ffe7a8">Make the Lattice sing</h2><p class="hint" style="color:var(--text)">The three keys hum in the hold, louder the closer you come. Set them in the ring around the Hollow and play the song. The Quiet will come for you while you play.</p>
+    <div class="row"><button class="primary" id="songGo">Set the keys and sing</button></div></div>`}
+function playTheSong(){const sh=ship();
+  startRhythm({title:"The song at the Hollow",desc:"Each phrase brightens the ring. The Quiet are hitting the hull; if it falls too low, the song breaks.",stepName:"Phrase",color:"#ffe7a8",
+    phrases:songPattern(4,6,53),win:1.25*(1+eff("wpn")/250+eff("cha")/400),status:()=>`Hull ${sh.hull} / ${hullMax(sh.up.armor)}`,quitLabel:"Break off",
+    onMiss:()=>{const d=rint(Math.random,10,18);sh.hull=Math.max(1,sh.hull-d);if(Math.random()<.25)hurtRandom(rint(Math.random,5,15),"when the Quiet struck the ship");
+      if(sh.hull<hullMax(sh.up.armor)*.2){logMsg("The hull can't take any more. You break off, and the song fades. The keys are still in the hold.");changed();return false}return true},
+    onPhrase:()=>{sh.hull=Math.min(hullMax(sh.up.armor),sh.hull+4)},
+    onDone:()=>{gainXP("wpn",30);gainXP("cha",20);exploreLoreSite("song");loreEnding3();changed()},onFail:quit=>{if(quit)logMsg("You break off the song. The keys are still in the hold.");changed()}})}
+function loreEnding3(){ensureLore();if(G.lore.done3)return;G.lore.done3=true;G.lore.quietBack=true;const sh=ship();sh.quietWard=true;sh.credits+=25000;
+  logMsg("The Lattice sings, and the Quiet slide back into the void. They will return one day, but not for a long, long time. Somewhere in the Verdant Veil, the chamber waits for someone to carry the song.");toast("The Lattice sings");changed()}
+
+// ---- the homecoming: recalled to the home starbase, and a celebration of life in the lounge
+function homecoming(){ensureLore();if(!G.lore.recall)return;G.lore.recall=false;G.lore.celebrated=true;const sh=ship(),home=G.systems.find(s=>s.home)||G.systems[0],L=G.legend||{};
+  logMsg(`A message waits for you in known space: the ship is recalled to ${home.name} for a celebration of life for Captain ${L.name}.`);
+  if(sysv.open)closeSystem();sh.at=home.id;sh.near=null;sh.orbit=null;selected=home;view.x=home.x;view.y=home.y;dockAt(home);
+  const cap=sh.crew.find(c=>c.captain),crew=sh.crew.filter(c=>!c.captain),st=captainStats(),friends=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)==="Friendly");
+  const lines=[`The Starlight Lounge at ${home.name} is full: your crew, the station staff, and envoys from every people who called Captain ${L.name} a friend. A portrait hangs above the bar.`,
+    cap?`${cap.name}, the new captain, raises a glass. “${st.charted} systems charted.${st.colonies?` ${st.colonies} ${st.colonies>1?"colonies":"colony"} that wouldn't exist without us.`:""}${st.friends?` ${st.friends} ${st.friends>1?"peoples":"people"} who call us friends.`:""} And one last order we all had to obey.”`:"",
+    crew[0]?`${crew[0].name}: “I'd have gone in. The captain wouldn't let me. That was the whole captain, right there.”`:"",
+    friends[0]?`The ${def(friends[0].key).name} envoy speaks for its people: “${{lumari:"We will plant something that outlives us all, in the captain's name.",ossari:"Every Exchange ledger will carry the captain's name, at no charge, forever.",kesh:"Swarm remembers. Swarm does not forget.",vorrn:"The clans will sing this one at every forge-fire."}[friends[0].key]||"We will tell this story to our children."}”`:"",
+    "The room goes quiet, and every glass rises. “To the captain.”"].filter(Boolean);
+  setTimeout(()=>{try{openPort();const ld=DOORS.find(d=>d.k==="lounge");if(ld){port.x=ld.x;enterDoor(ld)}}catch(e){}},300);
+  setTimeout(()=>storyScene({title:`A celebration of life for Captain ${L.name}`,figure:{sp:L.sp||"Human",seed:(G.hallLocal||[]).find(e=>e.honor)?.seed||1,player:true},lines,button:"To the captain",
+    onOk:()=>{logMsg(`Captain ${L.name}'s portrait and story now hang in the Hall of Captains at ${home.name}.`);if(port.lounge)loungeSay(`Glasses rise all around the room. “To Captain ${L.name}.”`);changed()}}),900);changed()}
+
+// ---- the legend: once the sacrifice is made, every port tells the story
+function legendLine(p){const Lg=G.legend;if(!Lg)return null;const n=Lg.name;
+  if(p.kind==="bartender")return pick(Math.random,[`This one's on the house. To Captain ${n}, who went into the dark so the rest of us didn't have to.`,`You've heard of Captain ${n}? Course you have. Every spacer who comes through here tells it different. All of them cry at the end.`,`They say Captain ${n} is still out there, asleep in the green, waiting. I like to think so.`]);
+  if(p.kind==="spacer")return pick(Math.random,[`I signed on because of Captain ${n}. Heard the story at a bar like this one and thought, I want to be on a ship like that.`,`My cousin swears she met Captain ${n} once. Bought her a drink. Probably made it up. Everyone says that now.`,`They say the Quiet were right at the edge, and Captain ${n} sang them back into the void. Sang! Can you imagine?`]);
+  if(p.kind==="visitor")return {lumari:`The Concord planted a grove for Captain ${n}. It will bloom for a thousand years.`,ossari:`The Exchange has stopped charging for one thing in all the galaxy: the telling of Captain ${n}'s story.`,kesh:`Swarm speaks the name of Captain ${n}. Swarm does not speak many names.`,vorrn:`The clans added Captain ${n} to the forge-songs. That has not happened to an outsider in nine hundred years.`}[p.aKey]||`Even among my people, they speak of Captain ${n}.`;
+  if(p.kind==="krillian")return pick(Math.random,[`Captain ${n}? Great friend of mine. Sold them a spare part once. Very important part. Probably saved the galaxy, honestly.`,`I knew Captain ${n} was destined for greatness. I told everyone. I also told everyone the opposite, to be safe.`]);
+  return null}
+
+// ---- codex leads for the new chapters
+function sleeperLead(src){const L=G.lore,S=sleeper();
+  if(src==="chamber"){const s=G.systems.find(q=>q.id===L.sites.chamber);return `<p class="hint" style="color:var(--amber)">Next lead: something is waiting at the heart of the Verdant Veil${s?`, in the ${esc(s.name)} system`:""}. ${ship().pathfinder?"Your pathfinder can take you there.":"You'll need a pathfinder to find a way through the nebula."} Land, and be ready to go the last stretch on foot.</p>${s?`<div class="row"><button class="sm" data-site="${s.id}">Show on star map</button></div>`:""}`}
+  if(src==="keys"&&L.keys)return `<p class="hint" style="color:var(--amber)">Next lead: ${esc(S.name)}'s three keys. ${keysGot()} of 3 recovered.</p><div class="shop">${L.keys.map(k=>{const s=G.systems.find(q=>q.id===k.sys);return `<div class="item"><div>${k.got?"✓":"○"} The ${esc(k.neb)}<div class="d">${k.kind==="walk"?"Ruins reached on foot":k.kind==="derelict"?"A guarded derelict":"A vault that answers to song"}${s?` · ${esc(s.name)}`:""}</div></div>${s&&!k.got?`<button class="sm" data-site="${s.id}">Show</button>`:"<div></div>"}</div>`}).join("")}</div>`;
+  if(src==="song"){const s=G.systems.find(q=>q.id===L.sites.hollow);return `<p class="hint" style="color:var(--amber)">Next lead: take the three keys to the Hollow${s?` (${esc(s.name)})`:""} and make the Lattice sing.</p>${s?`<div class="row"><button class="sm" data-site="${s.id}">Show on star map</button></div>`:""}`}
+  if(src==="mark"){const s=G.systems.find(q=>q.id===L.sites.chamber);return `<p class="hint" style="color:var(--amber)">Next lead: return to the chamber at the heart of the Verdant Veil. Someone must take ${esc(S.name)}'s place.</p>${s?`<div class="row"><button class="sm" data-site="${s.id}">Show on star map</button></div>`:""}`}
+  return ""}
 
 // ---------- boot ----------
 try{const s=localStorage.getItem(KEY);if(s){G=JSON.parse(s)}}catch{}

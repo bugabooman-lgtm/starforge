@@ -6,6 +6,15 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.79
+- **Name your captain** when you start a new game.
+- **Hall of Captains** at your home starbase, honoring captains lost in service.
+- **Exploring on foot.** Some places the rover can't reach. Step out in a space suit and walk. Better suits are sold at the shipyard.
+- **New chapters in the main story.**
+- Ruins no longer appear on gas giants.
+- **Fixed:** pressing Enter on a planet's surface could land you again and speed up the rover.
+- Balance improvements.
+
 ## 0.78
 - **Stardate.** Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.
 - **Ship skins.** Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.
