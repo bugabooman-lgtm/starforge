@@ -6,6 +6,17 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.78
+- **Stardate.** Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.
+- **Ship skins.** Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.
+- **A hidden tribute** to a beloved captain, waiting to be found.
+- **Every species has its own look.** The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.
+- You can no longer colonize a planet that already has an alien colony.
+- Friendly visitors in the starport corridor now look like their own species.
+
+## 0.77.1
+- Updated title screen text.
+
 ## 0.77
 - **More realistic people.** Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.
 - **New ways to spend credits:**

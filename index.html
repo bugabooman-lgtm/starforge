@@ -51,6 +51,7 @@ body.toolsOpen #modal{z-index:70}
 #docPanel .docBody table{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:13px}
 #docPanel .docBody th,#docPanel .docBody td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
 #docPanel .docBody th{color:var(--dim);font-weight:600}
+.readout.sdate{bottom:48px}
 .readout{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:12px;font-family:var(--f-data);font-size:20px;color:var(--amber);background:rgba(5,7,15,.75);padding:2px 10px;border:1px solid var(--line)}
 .zoom{position:absolute;right:16px;bottom:12px;display:flex;flex-direction:column;gap:6px}
 button,select,input,textarea{font:inherit;color:var(--text)}
@@ -182,7 +183,7 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
 <body>
 <div id="title" hidden><canvas id="titleCv" aria-hidden="true"></canvas><div class="tBox">
   <div class="tName">Starforge</div><div class="tVer" id="tVer"></div>
-  <p class="tTag">Chart an endless galaxy. Meet its peoples. Find what the Vael left behind.</p>
+  <p class="tTag">Chart an endless galaxy and meet its inhabitants. Discover what the Vael left behind.</p>
   <div class="tSave" id="tSave"></div>
   <div class="tBtns"><button class="primary" id="tCapt">Captain</button><button id="tBuild">Builder</button></div>
   <div class="tLinks"><button class="linkBtn" id="tAbout">About</button> · <button class="linkBtn" id="tManual">Manual</button> · <button class="linkBtn" id="tLog">Changelog</button></div>
@@ -198,12 +199,13 @@ body.captain aside section[data-ctab]:not(.ctOn){display:none!important}
     <div id="enc" class="captainOnly" hidden role="dialog" aria-live="polite"></div>
     <div id="docPanel" hidden></div>
     <div class="hud">
-      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.77</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
+      <div class="brand">Starforge<span class="ver"><span id="verTag">v0.78</span> · <button class="linkBtn" id="btnTitle">Title</button> · <button class="linkBtn" id="btnAbout">About</button> · <button class="linkBtn" id="btnManual">Manual</button></span></div>
       <div class="seg" role="group" aria-label="Mode"><button id="gmBuild" class="on">Builder</button><button id="gmCapt">Captain</button></div>
       <button id="modeSelect" class="on builderOnly" title="Click a star to inspect it">Select</button>
       <button id="modePlace" class="builderOnly" title="Click empty space to place a new system">Place system</button>
       <button id="btnExpand" class="primary builderOnly" title="Generate a new ring of systems beyond the known frontier">Expand frontier</button>
     </div>
+    <div class="readout sdate" id="sdate" hidden></div>
     <div class="readout" id="readout">X 000 · Y 000</div>
     <div class="zoom">
       <button id="zIn" aria-label="Zoom in">+</button>
@@ -587,7 +589,11 @@ function drawOrbit(s){
     if(p.outpost){x.fillStyle="#7bea8c";x.fillRect(px-4,60-rad-14,8,8)}});
   if(s.starbase){x.strokeStyle="#ffb347";x.lineWidth=3;x.strokeRect(60,14,22,22)}
 }
-function changed(){renderDetail();draw();if(typeof port!=="undefined"&&port.open&&port.room)renderRoom();autosave()}
+// the game day shown as a stardate: year, then day of the year
+const stardate=d=>{d=Math.max(0,Math.floor(d||0));return `${2386+Math.floor(d/365)}.${String(d%365+1).padStart(3,"0")}`};
+const sdNow=()=>stardate(G&&G.ship?G.ship.day:0);
+function showStardate(){const el=$("sdate");if(!el)return;const on=gameMode==="captain"&&!!(G&&G.ship);el.hidden=!on;if(on)el.textContent=`Stardate ${sdNow()}`}
+function changed(){showStardate();renderDetail();draw();if(typeof port!=="undefined"&&port.open&&port.room)renderRoom();autosave()}
 
 // =====================================================================
 // ---------- CAPTAIN MODE: ship, crew, travel ----------
@@ -730,7 +736,7 @@ const staffed=k=>!!worker(k);
 function priceMult(){return 1-eff("com")/400} // up to 25% off
 function fuelPerLy(){return .6*(1-ship().up.engine*.1)*(1-eff("nav")/200)*(ship().vaelDrive?.7:1)*(inUnknown()&&!ship().quietWard?1.4:1)*(towing()?1.3:1)}
 function fuelPrice(){const s=here();return Math.round((s&&s.home?6:9)*priceMult()*(sbHas(s,"fuel")?.8:1)*10)/10}
-function addRumor(m){const sh=ship();sh.rumors=sh.rumors||[];sh.rumors.unshift(`Day ${sh.day||0}: ${m}`);sh.rumors=sh.rumors.slice(0,40)}
+function addRumor(m){const sh=ship();sh.rumors=sh.rumors||[];sh.rumors.unshift(`Stardate ${stardate(sh.day)}: ${m}`);sh.rumors=sh.rumors.slice(0,40)}
 // turn system names and coordinates in a line of text into links to the star map
 let _lnk={n:-1,re:null};
 function linkify(text){
@@ -855,6 +861,7 @@ function reviewReports(){
   const sh=ship();if(!sh.reports||!sh.reports.length)return;
   for(const r of sh.reports){
     const sys=G.systems.find(x=>x.id===r.sys);const p=sys&&sys.planets[r.i];if(!p||p.colony)continue;
+    if(p.alienColony){logMsg(`The Colony Office rejected your report on ${p.name}: the ${def(p.alienColony).name} already have a colony there.`);continue}
     const h=habitability(p);
     if(h>=60){const pay=800+h*20;sh.credits+=pay;p.colony={stage:1,founded:sh.day||0};
       logMsg(`Colony Office approved ${p.name} (habitability ${h}). Colonists are on their way. Bonus: ${pay} credits.`)}
@@ -1055,10 +1062,10 @@ function startEncounter(a,atHome,roaming){
   renderEnc();renderCaptain();
 }
 // ---------- video link ----------
-const CREW_LOOK={kesh:"Kesh",vorrn:"Vorrn",lumari:"Lumari",ossari:"Ossari"};
+const CREW_LOOK={kesh:"Kesh",vorrn:"Vorrn",lumari:"Lumari",ossari:"Ossari",krillian:"Krillian",skarr:"Skarr",thexx:"Thexx",selenn:"Selenn",drovath:"Drovath",quarn:"Quarn",myrr:"Myrr"};
 function drawAlienCall(cv,a){
   const d=def(a.key),sp=CREW_LOOK[a.key]||"Alien",seed=hashStr(a.key);
-  const head={Kesh:{top:-90,span:34,cx:3},Vorrn:{top:-93,span:32,cx:3},Lumari:{top:-88,span:46,cx:1},Ossari:{top:-106,span:34,cx:3}}[sp]
+  const head={Kesh:{top:-90,span:34,cx:3},Vorrn:{top:-93,span:32,cx:3},Lumari:{top:-88,span:46,cx:1},Ossari:{top:-106,span:34,cx:3},Krillian:{top:-80,span:36,cx:6},Skarr:{top:-106,span:30,cx:6},Thexx:{top:-80,span:66,cx:2},Selenn:{top:-118,span:48,cx:2},Drovath:{top:-108,span:38,cx:4},Quarn:{top:-94,span:34,cx:4},Myrr:{top:-104,span:50,cx:0}}[sp]
     ||[{top:-58,span:34,cx:1},{top:-102,span:36,cx:2},{top:-82,span:30,cx:7}][seed%3];
   drawPortrait(cv,{sp,col:d.color,seed},head);
   const c=cv.getContext("2d"),W=cv.clientWidth,H=cv.clientHeight;
@@ -1507,8 +1514,8 @@ function renderCaptain(){
     <canvas id="shipThumb" style="width:100%;aspect-ratio:8/3;height:auto;max-width:100%;border:1px solid var(--line)" aria-label="Your ship"></canvas>
     <div class="stat">Fuel ${bar("fuel",sh.fuel,tc,`${Math.round(sh.fuel*10)/10} / ${tc}`)}</div>
     <div class="stat">Hull ${bar("hull",sh.hull,hm,`${sh.hull} / ${hm}`)}</div>
-    <div class="data">Day <b>${sh.day||0}</b> · Colonies founded <b>${colonyCount()}</b>${(sh.reports||[]).length?` · Reports to file <b>${sh.reports.length}</b>`:""}<br>Credits <b>${Math.round(sh.credits).toLocaleString()}</b> · Survey data <b>${Math.round(sh.data)}</b><br>
-    Range <b>${Math.floor(rangeLy())}</b> ly · <b>${(fuelPerLy()).toFixed(3)}</b> fuel per ly${sh.prize?`<br><span style="color:var(--amber)">Towing a captured ${esc(sh.prize.name)} · worth about ${sh.prize.value.toLocaleString()} cr at a starbase · jumps cost 30% more fuel</span>`:""}${krSmuggling()?`<br><span style="color:${KRILL_DEF.color}">Krillian smugglers are covering you until day ${sh.krSmuggle}</span>`:""}${insured()?`<br><span class="hint">Insured · next payment day ${ext().ins.next}</span>`:""}</div>
+    <div class="data">Stardate <b>${stardate(sh.day)}</b> · Colonies founded <b>${colonyCount()}</b>${(sh.reports||[]).length?` · Reports to file <b>${sh.reports.length}</b>`:""}<br>Credits <b>${Math.round(sh.credits).toLocaleString()}</b> · Survey data <b>${Math.round(sh.data)}</b><br>
+    Range <b>${Math.floor(rangeLy())}</b> ly · <b>${(fuelPerLy()).toFixed(3)}</b> fuel per ly${sh.prize?`<br><span style="color:var(--amber)">Towing a captured ${esc(sh.prize.name)} · worth about ${sh.prize.value.toLocaleString()} cr at a starbase · jumps cost 30% more fuel</span>`:""}${krSmuggling()?`<br><span style="color:${KRILL_DEF.color}">Krillian smugglers are covering you until stardate ${stardate(sh.krSmuggle)}</span>`:""}${insured()?`<br><span class="hint">Insured · next payment stardate ${stardate(ext().ins.next)}</span>`:""}</div>
     ${stranded()?`<div class="row"><span class="hint" style="flex:1;color:var(--danger)">Not enough fuel to reach any star.</span><button id="cTow" class="danger">Call for a tow</button></div>`:""}
     ${depotsHtml()}
     <div class="data" style="font-size:16px;color:var(--dim)">${["engine","tank","cargo","sensors"].map(k=>`${UPG[k].name} <span class="pips">${pipStr(sh.up[k])}</span>`).join("<br>")}</div>`;
@@ -1811,7 +1818,7 @@ function saveSummary(g){
   const n=g.systems.filter(x=>!x.deep).length;
   if(!g.ship)return `Galaxy “${g.seedText}” with ${n} systems. No captain's game in it yet.`;
   const sh=g.ship,codex=g.lore&&g.lore.found?g.lore.found.length:0;
-  return `${sh.name} · day ${sh.day||0} · ${Math.round(sh.credits).toLocaleString()} credits · crew of ${sh.crew.length} · ${n} systems · Codex ${codex} of 12`;
+  return `${sh.name} · stardate ${stardate(sh.day)} · ${Math.round(sh.credits).toLocaleString()} credits · crew of ${sh.crew.length} · ${n} systems · Codex ${codex} of 12`;
 }
 $("btnExport").onclick=()=>{const txt=JSON.stringify(G);openModal("Export",txt);$("mText").style.height="200px";
   $("mNote").hidden=false;$("mNote").innerHTML=`This save holds: <b style="color:var(--text)">${esc(saveSummary(G))}</b>. Press Copy, then paste it into a note or text file. It's ${Math.round(txt.length/1024)} KB and starts with {"seedText".`};
@@ -1908,7 +1915,8 @@ function openPort(){
   // passers-by: your crew's species and aliens you've met
   const r=rng(Date.now());
   const crewFolk=ship().crew.filter(c=>!c.captain).sort(()=>r()-.5).slice(0,2).map(c=>({sp:c.species,col:speciesColor(c.species),seed:c.id}));
-  const visitors=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)!=="Hostile").sort(()=>r()-.5).slice(0,r()<.6?1:0).map(a=>({sp:"Alien",col:def(a.key).color,seed:hashStr(a.key)}));
+  const visitors=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)!=="Hostile").sort(()=>r()-.5).slice(0,r()<.6?1:0).map(a=>({sp:CREW_LOOK[a.key]||"Alien",col:def(a.key).color,seed:hashStr(a.key)}));
+  if(r()<.2)visitors.push({sp:"Krillian",col:KRILL_DEF.color,seed:Math.floor(r()*1e9)});
   const folk=[...crewFolk,...visitors];
   // and a local or two going about their day
   for(let i=0,n=rint(r,1,2);i<n;i++){const sp=pick(r,["Human","Human","Kesh","Vorrn","Lumari","Ossari","Synth"]);folk.push({sp,col:speciesColor(sp),seed:Math.floor(r()*1e9)})}
@@ -1950,7 +1958,7 @@ function enterDoor(d){
   renderRoom();
 }
 function berthImage(){
-  const sh=ship(),s=here(),key=JSON.stringify(sh.up)+sh.name+s.cls;
+  const sh=ship(),s=here(),key=JSON.stringify(sh.up)+sh.name+s.cls+JSON.stringify([ext().hull,ext().glow,ext().paint,ext().bigName]);
   if(port.berth&&port.berth.key===key)return port.berth.cv;
   const cv=document.createElement("canvas");cv.width=1000;cv.height=360;drawShipArt(cv,sh.up,{name:sh.name,idle:true});
   const c=cv.getContext("2d"),W=1000,H=360;
@@ -2019,7 +2027,7 @@ function renderRoom(){
     case "personnel":baseTab="personnel";el.innerHTML=`<div id="rb"></div>`;renderBase($("rb"),true);break;
     case "ops":{
       const known=(G.aliens||[]).filter(a=>a.met||a.known);
-      el.innerHTML=`<div class="data">Station <b>${esc(s.name)}</b>${s.home?" · Home base":""} · Day <b>${sh.day||0}</b><br>Captain of the <b>${esc(sh.name)}</b> · ${Math.round(sh.credits).toLocaleString()} credits</div>
+      el.innerHTML=`<div class="data">Station <b>${esc(s.name)}</b>${s.home?" · Home base":""} · Stardate <b>${stardate(sh.day)}</b><br>Captain of the <b>${esc(sh.name)}</b> · ${Math.round(sh.credits).toLocaleString()} credits</div>
         <h2>Notices</h2><div class="log" style="max-height:none">${sh.log.slice(0,12).map(m=>`<div>${linkify(m)}</div>`).join("")}</div>
         <h2>Alien relations</h2>${known.length?known.map(a=>{const d=def(a.key),st=stanceOf(a.att);return `<div class="contact"><i style="background:${d.color}"></i><div>${esc(d.name)}</div><span class="att" style="color:${stanceColor(st)}">${st}</span></div>`}).join(""):'<p class="hint">No species on file yet.</p>'}
         <h2>Starbase network</h2><p class="hint">${G.systems.filter(x=>x.starbase).map(x=>esc(x.name)).join(" · ")}</p>${stationHtml()}`;wireStation(el);break}
@@ -2037,7 +2045,7 @@ function renderRoom(){
         ${pending?`<p class="hint" style="color:var(--amber)">${pending} report${pending>1?"s":""} waiting. They'll be reviewed next time you dock.</p>`:""}
         <h2>Colonies · ${cols.length}</h2>
         ${cols.length?`<div class="shop">${cols.map(([x,p])=>{const age=(sh.day||0)-p.colony.founded+colBoost(p.colony);const next=p.colony.stage===1?`grows into a colony in ${Math.max(0,30-age)} days`:p.colony.stage===2?`builds a starbase in ${Math.max(0,90-age)} days`:"fully established";
-          return `<div class="item"><div>${esc(p.name)} <span class="tag home">${COLONY_STAGES[p.colony.stage]}</span><div class="d">Habitability ${habitability(p)} · founded day ${p.colony.founded} · ${next}</div></div><div></div></div>`}).join("")}</div>`:'<p class="hint">No colonies yet. Go find a Prime world.</p>'}`;break}
+          return `<div class="item"><div>${esc(p.name)} <span class="tag home">${COLONY_STAGES[p.colony.stage]}</span><div class="d">Habitability ${habitability(p)} · founded stardate ${stardate(p.colony.founded)} · ${next}</div></div><div></div></div>`}).join("")}</div>`:'<p class="hint">No colonies yet. Go find a Prime world.</p>'}`;break}
   }
 }
 
@@ -2278,6 +2286,7 @@ function drawShipArt(cv,up,opts={}){
   const X0=cx-L/2,X1=cx+L/2,top=cy-hullH/2,bot=cy+hullH/2;
   const PT=(typeof PAINTS!=="undefined"&&PAINTS[opts.paint!==undefined?opts.paint:(G&&G.ship&&G.ship.ext&&G.ship.ext.paint)||"std"])||{};
   const base=PT.base?shade(PT.base,-up.armor*.04):["#9aa4b8","#a0aabd","#98a1b2","#8a93a3","#7c8595","#6e7686","#5d5f6b"][up.armor];
+  const XT=(G&&G.ship&&G.ship.ext)||{},HS=opts.hull!==undefined?opts.hull:(XT.hull||"std"),GL=(typeof GLOWS!=="undefined"&&GLOWS[opts.glow!==undefined?opts.glow:(XT.glow||"std")])||null;
   const six=k=>up[k]>=6,ion=opts.ion!==undefined?opts.ion:!!(G&&G.ship&&G.ship.ionCannon);
   const R=rng(17); // fixed greeble layout so the ship doesn't flicker
 
@@ -2297,7 +2306,8 @@ function drawShipArt(cv,up,opts={}){
   const engs=[];for(let i=0;i<engN;i++)engs.push(cy+(i-(engN-1)/2)*(engR*2.25)+(engN===2?0:0));
   for(const ey of engs){ // exhaust plume
     const fl=opts.idle?6+up.engine*2:40+up.engine*20;
-    const pg=c.createLinearGradient(X0-34-fl,0,X0-30,0);const e6=six("engine");pg.addColorStop(0,e6?"rgba(170,120,255,0)":"rgba(120,170,255,0)");pg.addColorStop(.55,e6?"rgba(180,140,255,.5)":"rgba(140,190,255,.35)");pg.addColorStop(.9,e6?"rgba(235,220,255,.9)":"rgba(220,235,255,.85)");pg.addColorStop(1,"#fff");
+    const pg=c.createLinearGradient(X0-34-fl,0,X0-30,0);const e6=six("engine");if(GL&&GL.rgb){const [r1,g1,b1]=GL.rgb;pg.addColorStop(0,`rgba(${r1},${g1},${b1},0)`);pg.addColorStop(.55,`rgba(${r1},${g1},${b1},.5)`);pg.addColorStop(.9,`rgba(${Math.min(255,r1+60)},${Math.min(255,g1+60)},${Math.min(255,b1+60)},.9)`)}
+    else{pg.addColorStop(0,e6?"rgba(170,120,255,0)":"rgba(120,170,255,0)");pg.addColorStop(.55,e6?"rgba(180,140,255,.5)":"rgba(140,190,255,.35)");pg.addColorStop(.9,e6?"rgba(235,220,255,.9)":"rgba(220,235,255,.85)")}pg.addColorStop(1,"#fff");
     c.fillStyle=pg;c.beginPath();c.moveTo(X0-30,ey-engR*.75);c.quadraticCurveTo(X0-30-fl*.6,ey-engR*.5,X0-34-fl,ey);c.quadraticCurveTo(X0-30-fl*.6,ey+engR*.5,X0-30,ey+engR*.75);c.fill();
     const core=c.createLinearGradient(X0-30-fl*.4,0,X0-30,0);core.addColorStop(0,"rgba(255,255,255,0)");core.addColorStop(1,"rgba(255,255,255,.9)");
     c.fillStyle=core;c.beginPath();c.moveTo(X0-30,ey-engR*.3);c.lineTo(X0-30-fl*.4,ey);c.lineTo(X0-30,ey+engR*.3);c.fill();
@@ -2308,7 +2318,7 @@ function drawShipArt(cv,up,opts={}){
     c.fillStyle="rgba(0,0,0,.3)";for(let k=0;k<3;k++)c.fillRect(X0+2+k*14,ey-engR+2,1,engR*2-4);
     // nozzle bell
     c.fillStyle=metalGrad(c,ey-engR*1.05,ey+engR*1.05,"#4b5262");c.beginPath();c.moveTo(X0-14,ey-engR*.7);c.lineTo(X0-30,ey-engR*1.0);c.lineTo(X0-30,ey+engR*1.0);c.lineTo(X0-14,ey+engR*.7);c.closePath();c.fill();
-    c.fillStyle=six("engine")?"rgba(200,170,255,.95)":"rgba(170,210,255,.95)";c.beginPath();c.ellipse(X0-30,ey,3,engR*.95,0,0,Math.PI*2);c.fill();
+    c.fillStyle=GL&&GL.rgb?`rgba(${GL.rgb.join(",")},.95)`:six("engine")?"rgba(200,170,255,.95)":"rgba(170,210,255,.95)";c.beginPath();c.ellipse(X0-30,ey,3,engR*.95,0,0,Math.PI*2);c.fill();
     if(six("engine")){c.fillStyle="#8a7bd0";for(const sd of [-1,1]){c.beginPath();c.moveTo(X0+30,ey+sd*engR*.9);c.lineTo(X0-6,ey+sd*engR*1.9);c.lineTo(X0-18,ey+sd*engR*1.7);c.lineTo(X0+6,ey+sd*engR*.9);c.closePath();c.fill()}
       c.strokeStyle="rgba(220,200,255,.8)";c.beginPath();c.moveTo(X0-14,ey);c.lineTo(X0+46,ey);c.stroke()}
   }
@@ -2323,14 +2333,108 @@ function drawShipArt(cv,up,opts={}){
   }
 
   // --- main hull silhouette
-  const hull=new Path2D();
-  hull.moveTo(X0,top+6);hull.lineTo(X0+10,top);hull.lineTo(X1-95,top);
-  hull.bezierCurveTo(X1-40,top+1,X1-6,cy-8,X1,cy+3);
-  hull.bezierCurveTo(X1-10,cy+12,X1-40,bot,X1-110,bot);
-  hull.lineTo(X0+14,bot);hull.lineTo(X0,bot-8);hull.closePath();
-  c.fillStyle=metalGrad(c,top,bot,base);c.fill(hull);
+  const hull=new Path2D(),edge=new Path2D();
+  const finG=(y0,y1,k)=>{const g=c.createLinearGradient(0,y0,0,y1);g.addColorStop(0,shade(base,k||-.08));g.addColorStop(1,shade(base,-.45));return g};
+  const poly=(pts,fill)=>{c.fillStyle=fill;c.beginPath();pts.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill()};
+  if(HS==="racer"){ // very long needle nose, tall swept fins
+    hull.moveTo(X0,top+8);hull.lineTo(X0+14,top+2);hull.lineTo(X1-95,top);hull.bezierCurveTo(X1-20,top+3,X1+30,cy,X1+70,cy+2);
+    hull.bezierCurveTo(X1+30,cy+6,X1-30,bot-2,X1-110,bot);hull.lineTo(X0+20,bot-2);hull.lineTo(X0,bot-10);hull.closePath();
+    edge.moveTo(X0+14,top+2.5);edge.lineTo(X1-95,top+.5);edge.bezierCurveTo(X1-20,top+3.5,X1+30,cy+.5,X1+70,cy+2);
+    poly([[X0+70,top+2],[X0-6,top-52],[X0+26,top-52],[X0+150,top+2]],finG(top-52,top));
+    poly([[X0+70,bot-2],[X0-2,bot+44],[X0+30,bot+44],[X0+140,bot-2]],finG(bot+44,bot));
+    c.fillStyle="rgba(255,80,60,.85)";c.fillRect(X0-4,top-53,26,2.5);c.fillRect(X0,bot+43,26,2.5)}
+  else if(HS==="hauler"){ // tall, boxy, blunt nose, container racks along the top
+    hull.moveTo(X0,top-24);hull.lineTo(X1-46,top-24);hull.quadraticCurveTo(X1+8,top-24,X1+10,cy-6);hull.quadraticCurveTo(X1+8,bot+4,X1-46,bot+4);
+    hull.lineTo(X0,bot+4);hull.closePath();edge.moveTo(X0,top-23.5);edge.lineTo(X1-46,top-23.5);edge.quadraticCurveTo(X1+7.5,top-23.5,X1+9.5,cy-6)}
+  else if(HS==="wedge"){ // towering stern sloping to a long, knife-like prow
+    hull.moveTo(X0,top-46);hull.lineTo(X0+50,top-50);hull.lineTo(X1-95,top);hull.lineTo(X1+46,cy+4);hull.lineTo(X1-30,bot+6);
+    hull.lineTo(X0+10,bot+6);hull.lineTo(X0,bot-2);hull.closePath();edge.moveTo(X0+50,top-49.5);edge.lineTo(X1-95,top+.5);edge.lineTo(X1+46,cy+4)}
+  else if(HS==="explorer"){ // tall, smooth, swelling back, rounded prow and a long sensor spar
+    hull.moveTo(X0,top+8);hull.bezierCurveTo(X0+30,top-48,X1-230,top-56,X1-80,top-10);hull.bezierCurveTo(X1-20,top,X1+18,cy-6,X1+18,cy+2);
+    hull.bezierCurveTo(X1+14,cy+14,X1-40,bot+6,X1-120,bot+6);hull.bezierCurveTo(X0+80,bot+8,X0+20,bot,X0,bot-6);hull.closePath();
+    edge.moveTo(X0+4,top+6);edge.bezierCurveTo(X0+30,top-47.5,X1-230,top-55.5,X1-80,top-9.5);edge.bezierCurveTo(X1-20,top+.5,X1+17,cy-6,X1+17.5,cy+2);
+    c.fillStyle=metalGrad(c,cy-3,cy+3,shade(base,-.05));c.fillRect(X1+10,cy-1.5,64,3);
+    const sp=c.createRadialGradient(X1+76,cy,0,X1+76,cy,9);sp.addColorStop(0,"#e8fdff");sp.addColorStop(.4,"rgba(92,225,230,.8)");sp.addColorStop(1,"rgba(92,225,230,0)");c.fillStyle=sp;c.fillRect(X1+64,cy-10,24,20)}
+  else if(HS==="interceptor"){ // hard angles, big swept wings and forward canards
+    hull.moveTo(X0,top+4);hull.lineTo(X0+50,top-10);hull.lineTo(X1-130,top-6);hull.lineTo(X1-70,top+4);hull.lineTo(X1+52,cy+2);hull.lineTo(X1-70,bot);
+    hull.lineTo(X0+50,bot+8);hull.lineTo(X0,bot-4);hull.closePath();edge.moveTo(X0+50,top-9.5);edge.lineTo(X1-130,top-5.5);edge.lineTo(X1-70,top+4.5);edge.lineTo(X1+52,cy+2);
+    for(const sg of [-1,1]){const y0=sg<0?top-6:bot+4;
+      poly([[X0+90,y0],[X0-10,y0+sg*62],[X0+30,y0+sg*62],[X0+200,y0]],finG(y0+sg*62,y0));
+      poly([[X1-90,y0+sg*-2],[X1-150,y0+sg*30],[X1-118,y0+sg*30],[X1-40,y0+sg*-2]],finG(y0+sg*30,y0));
+      c.fillStyle="rgba(255,200,60,.8)";c.fillRect(X0-8,y0+sg*62-1,36,2)}}
+  else if(HS==="raptor"){ // hunched back, deep hooked beak, huge swept blade wings with serrated edges
+    hull.moveTo(X0,top+6);hull.quadraticCurveTo(X0+120,top-24,X1-120,top-14);hull.quadraticCurveTo(X1-10,top-14,X1+40,cy+16);hull.lineTo(X1+22,cy+20);
+    hull.quadraticCurveTo(X1-10,cy+8,X1-50,bot);hull.lineTo(X0+30,bot+2);hull.lineTo(X0,bot-6);hull.closePath();
+    edge.moveTo(X0+4,top+4);edge.quadraticCurveTo(X0+120,top-23.5,X1-120,top-13.5);edge.quadraticCurveTo(X1-10,top-13.5,X1+40,cy+16);
+    for(const sg of [-1,1]){const y0=sg<0?top-2:bot-2;c.fillStyle=finG(y0,y0+sg*76,-.05);c.beginPath();
+      c.moveTo(X1-90,y0);c.quadraticCurveTo(X0+220,y0+sg*22,X0-10,y0+sg*80);
+      for(let k=1;k<=6;k++){const t=k/6,x=X0-10+t*150,yy=80-t*70;c.lineTo(x-14,y0+sg*(yy+6));c.lineTo(x,y0+sg*yy)}
+      c.lineTo(X0+150,y0);c.closePath();c.fill();
+      c.strokeStyle="rgba(0,0,0,.35)";c.beginPath();c.moveTo(X1-120,y0+sg*4);c.quadraticCurveTo(X0+200,y0+sg*26,X0+14,y0+sg*72);c.stroke();
+      c.fillStyle="rgba(255,90,60,.9)";c.fillRect(X0-12,y0+sg*76-1.5,10,3)}}
+  else if(HS==="dreadnought"){ // towering stepped armour terraces and a keel blade
+    hull.moveTo(X0,top-42);hull.lineTo(X0+80,top-42);hull.lineTo(X0+88,top-28);hull.lineTo(X0+170,top-28);hull.lineTo(X0+178,top-14);hull.lineTo(X1-95,top-14);
+    hull.bezierCurveTo(X1-30,top-10,X1+6,cy-8,X1+14,cy+3);hull.bezierCurveTo(X1,cy+14,X1-40,bot+6,X1-110,bot+6);hull.lineTo(X0,bot+6);hull.closePath();
+    edge.moveTo(X0,top-41.5);edge.lineTo(X0+80,top-41.5);edge.moveTo(X0+88,top-27.5);edge.lineTo(X0+170,top-27.5);edge.moveTo(X0+178,top-13.5);edge.lineTo(X1-95,top-13.5);edge.bezierCurveTo(X1-30,top-9.5,X1+6,cy-8,X1+14,cy+3);
+    poly([[X0+60,bot+6],[X0+110,bot+30],[X1-150,bot+30],[X1-110,bot+6]],finG(bot+30,bot+6,-.2))}
+  else if(HS==="flagship"){ // the Captain's Flagship: long and stately, raised command deck, fine prow
+    for(const sg of [-1,1]){const y0=sg<0?top+2:bot-2;const fg=finG(y0,y0+sg*40,-.05);c.fillStyle=fg;c.beginPath();
+      c.moveTo(X0+150,y0);c.bezierCurveTo(X0+90,y0+sg*6,X0+30,y0+sg*24,X0-14,y0+sg*40);c.lineTo(X0+16,y0+sg*40);c.bezierCurveTo(X0+60,y0+sg*26,X0+120,y0+sg*12,X0+220,y0);c.closePath();c.fill();
+      c.strokeStyle="rgba(224,184,74,.85)";c.lineWidth=1.2;c.beginPath();c.moveTo(X0+150,y0);c.bezierCurveTo(X0+90,y0+sg*6,X0+30,y0+sg*24,X0-14,y0+sg*40);c.stroke();c.lineWidth=1}
+    hull.moveTo(X0,top+4);hull.lineTo(X0+20,top-2);hull.bezierCurveTo(X0+120,top-8,X1-260,top-6,X1-210,top-6);
+    hull.bezierCurveTo(X1-180,top-6,X1-170,top-22,X1-140,top-22);hull.lineTo(X1-100,top-22);hull.bezierCurveTo(X1-80,top-22,X1-70,top-4,X1-40,top+2);
+    hull.bezierCurveTo(X1,top+8,X1+30,cy-2,X1+52,cy+2);hull.bezierCurveTo(X1+30,cy+8,X1-10,bot+4,X1-80,bot+6);
+    hull.bezierCurveTo(X1-200,bot+10,X0+80,bot+8,X0+20,bot+2);hull.lineTo(X0,bot-6);hull.closePath();
+    edge.moveTo(X0+20,top-1.5);edge.bezierCurveTo(X0+120,top-7.5,X1-260,top-5.5,X1-210,top-5.5);edge.bezierCurveTo(X1-180,top-5.5,X1-170,top-21.5,X1-140,top-21.5);edge.lineTo(X1-100,top-21.5);
+    edge.bezierCurveTo(X1-80,top-21.5,X1-70,top-3.5,X1-40,top+2.5);edge.bezierCurveTo(X1,top+8.5,X1+30,cy-1.5,X1+52,cy+2)}
+  else if(HS==="corsair"){ // long twin prongs, tall spined dorsal fin
+    hull.moveTo(X0,top+6);hull.lineTo(X0+10,top);hull.lineTo(X1-95,top);hull.bezierCurveTo(X1-40,top+1,X1-6,cy-8,X1,cy+3);
+    hull.bezierCurveTo(X1-10,cy+12,X1-40,bot,X1-110,bot);hull.lineTo(X0+14,bot);hull.lineTo(X0,bot-8);hull.closePath();
+    edge.moveTo(X0+10,top+.5);edge.lineTo(X1-95,top+.5);edge.bezierCurveTo(X1-40,top+1.5,X1-6,cy-8,X1,cy+3);
+    poly([[X0+40,top+2],[X0+4,top-46],[X0+40,top-46],[X0+150,top+2]],finG(top-46,top));
+    for(let k=0;k<5;k++){const x=X0+200+k*36;poly([[x,top+1],[x+8,top-12],[x+14,top+1]],shade(base,-.3))}
+    for(const sg of [-1,1]){const y0=sg<0?top+6:bot-6;c.fillStyle=metalGrad(c,y0-8,y0+8,shade(base,-.08));c.beginPath();
+      c.moveTo(X1-140,y0);c.lineTo(X1+80,y0+sg*-4);c.lineTo(X1+88,y0+sg*3);c.lineTo(X1-60,y0+sg*12);c.lineTo(X1-140,y0+sg*12);c.closePath();c.fill();
+      c.fillStyle="rgba(255,80,60,.85)";c.fillRect(X1+64,y0+sg*1-1.2,16,2.4)}}
+  else if(HS==="smuggler"){ // a patched-together silhouette: bolted-on modules, an outrigger pod, antennas everywhere
+    hull.moveTo(X0,top+6);hull.lineTo(X0+10,top);hull.lineTo(X0+60,top);hull.lineTo(X0+64,top-18);hull.lineTo(X0+140,top-18);hull.lineTo(X0+146,top);hull.lineTo(X1-95,top);
+    hull.bezierCurveTo(X1-40,top+1,X1-6,cy-8,X1,cy+3);hull.lineTo(X1-8,cy+8);hull.lineTo(X1-2,cy+12);
+    hull.bezierCurveTo(X1-20,bot,X1-40,bot,X1-110,bot);hull.lineTo(X0+14,bot);hull.lineTo(X0,bot-8);hull.closePath();
+    edge.moveTo(X0+10,top+.5);edge.lineTo(X0+60,top+.5);edge.moveTo(X0+64,top-17.5);edge.lineTo(X0+140,top-17.5);edge.moveTo(X0+146,top+.5);edge.lineTo(X1-95,top+.5);edge.bezierCurveTo(X1-40,top+1.5,X1-6,cy-8,X1,cy+3);
+    bevelRect(c,X1-200,bot+4,90,16,shade(base,-.3));c.fillStyle="rgba(255,200,60,.7)";c.fillRect(X1-196,bot+16,82,2);
+    c.strokeStyle="rgba(200,205,215,.8)";c.lineWidth=1;for(const[x,h]of[[X0+80,26],[X0+96,36],[X0+124,22]]){c.beginPath();c.moveTo(x,top-18);c.lineTo(x+(h%3)-1,top-18-h);c.stroke();c.fillStyle="#ff6b6b";c.fillRect(x+(h%3)-2,top-19-h,2,2)}}
+  else{
+    hull.moveTo(X0,top+6);hull.lineTo(X0+10,top);hull.lineTo(X1-95,top);
+    hull.bezierCurveTo(X1-40,top+1,X1-6,cy-8,X1,cy+3);
+    hull.bezierCurveTo(X1-10,cy+12,X1-40,bot,X1-110,bot);
+    hull.lineTo(X0+14,bot);hull.lineTo(X0,bot-8);hull.closePath();
+    edge.moveTo(X0+10,top+.5);edge.lineTo(X1-95,top+.5);edge.bezierCurveTo(X1-40,top+1.5,X1-6,cy-8,X1,cy+3)}
+  const yT={flagship:top-22,hauler:top-24,wedge:top-50,explorer:top-50,dreadnought:top-42,smuggler:top-18,raptor:top-22,interceptor:top-10}[HS]??top;c.fillStyle=metalGrad(c,yT,bot,base);c.fill(hull);
   // details live inside the hull outline
   c.save();c.clip(hull);
+  if(PT.under){const ug=c.createLinearGradient(0,cy+hullH*.05,0,cy+hullH*.25);ug.addColorStop(0,PT.under+"00");ug.addColorStop(1,PT.under+"e6");c.fillStyle=ug;c.fillRect(X0-20,cy+hullH*.05,L+100,hullH)}
+  if(HS==="flagship"){c.strokeStyle="rgba(224,184,74,.9)";c.lineWidth=1.4;c.beginPath();c.moveTo(X0+24,cy+hullH*.06);c.bezierCurveTo(X0+200,cy+hullH*.06,X1-60,cy+hullH*.02,X1+46,cy+2);c.stroke();
+    c.lineWidth=.8;c.beginPath();c.moveTo(X0+40,cy+hullH*.14);c.bezierCurveTo(X0+200,cy+hullH*.14,X1-60,cy+hullH*.1,X1+30,cy+4);c.stroke();c.lineWidth=1;
+    for(let x=X1-160;x<X1-84;x+=6){c.fillStyle=R()<.85?"rgba(255,232,170,.95)":"rgba(40,50,70,.9)";c.fillRect(x,top-16,3,2.2)}
+    c.fillStyle="rgba(0,0,0,.18)";c.fillRect(X1-170,top-12,90,1.2)}
+  if(HS==="hauler"){c.fillStyle="rgba(0,0,0,.18)";for(let x=X0+50;x<X1-110;x+=44)c.fillRect(x,top-24,2,hullH+28);
+    const pr=rng(5);for(let x=X0+54;x<X1-150;x+=44){c.fillStyle=["rgba(170,90,60,.45)","rgba(70,110,150,.45)","rgba(110,140,80,.45)","rgba(200,160,70,.45)"][Math.floor(pr()*4)];c.fillRect(x,top-21,38,15)}
+    c.fillStyle="rgba(255,200,60,.6)";for(let x=X0+6;x<X0+46;x+=10){c.beginPath();c.moveTo(x,top-4);c.lineTo(x+5,top-4);c.lineTo(x+11,top-14);c.lineTo(x+6,top-14);c.fill()}}
+  if(HS==="wedge"){c.fillStyle="rgba(0,0,0,.22)";c.beginPath();c.moveTo(X0,top-46);c.lineTo(X0+50,top-50);c.lineTo(X1-95,top);c.lineTo(X0,top+4);c.fill();
+    c.strokeStyle="rgba(255,255,255,.12)";for(let k=1;k<5;k++){c.beginPath();c.moveTo(X0+10*k,top-46+k*10);c.lineTo(X1-120+k*4,top+2);c.stroke()}}
+  if(HS==="explorer"){const lb=c.createLinearGradient(X0,0,X1,0);lb.addColorStop(0,"rgba(92,225,230,0)");lb.addColorStop(.15,"rgba(140,240,255,.85)");lb.addColorStop(.9,"rgba(140,240,255,.85)");lb.addColorStop(1,"rgba(92,225,230,0)");
+    c.fillStyle=lb;c.fillRect(X0+20,cy+hullH*.42,L-40,2.4);c.fillRect(X0+60,top-24,L-230,1.6);sheen2(c,X0+30,top-50,L-120,20)}
+  if(HS==="interceptor"){c.fillStyle="rgba(0,0,0,.18)";c.beginPath();c.moveTo(X0+50,top-10);c.lineTo(X1-130,top-6);c.lineTo(X1-70,top+4);c.lineTo(X1+52,cy+2);c.lineTo(X0+50,cy+2);c.fill();
+    c.strokeStyle="rgba(255,255,255,.14)";c.beginPath();c.moveTo(X0+50,cy+2);c.lineTo(X1+52,cy+2);c.stroke()}
+  if(HS==="raptor"){c.fillStyle="rgba(0,0,0,.2)";c.beginPath();c.moveTo(X1-60,top-10);c.quadraticCurveTo(X1-10,top-10,X1+40,cy+16);c.lineTo(X1-40,cy+4);c.fill();
+    const ey=c.createRadialGradient(X1-10,cy-2,0,X1-10,cy-2,8);ey.addColorStop(0,"#fff1c0");ey.addColorStop(.4,"rgba(255,120,60,.9)");ey.addColorStop(1,"rgba(255,120,60,0)");c.fillStyle=ey;c.fillRect(X1-20,cy-12,20,20)}
+  if(HS==="dreadnought"){c.fillStyle="rgba(0,0,0,.22)";c.fillRect(X0,top-28,88,14);c.fillRect(X0+88,top-14,90,14);
+    for(const[x0,x1,y]of[[X0+8,X0+76,top-36],[X0+96,X0+166,top-22],[X0+186,X1-110,top-8]])for(let x=x0;x<x1;x+=7){c.fillStyle=R()<.75?"rgba(255,226,150,.9)":"rgba(40,50,70,.9)";c.fillRect(x,y,2.5,1.6)}}
+  if(HS==="smuggler"){const pr=rng(31);for(let i=0;i<20;i++){const px=X0+10+pr()*(L-120),py=top-16+pr()*(hullH+12),pw=14+pr()*30,ph=6+pr()*12;
+      c.fillStyle=pr()<.45?"rgba(150,85,40,.55)":pr()<.5?"rgba(0,0,0,.34)":"rgba(255,255,255,.2)";c.fillRect(px,py,pw,ph);c.fillStyle="rgba(20,20,20,.55)";for(const[qx,qy]of[[px+1.5,py+1.5],[px+pw-2.5,py+1.5],[px+1.5,py+ph-2.5],[px+pw-2.5,py+ph-2.5]])c.fillRect(qx,qy,1,1)}
+    const sc=c.createRadialGradient(X1-6,cy,2,X1-6,cy,70);sc.addColorStop(0,"rgba(20,12,6,.6)");sc.addColorStop(1,"rgba(20,12,6,0)");c.fillStyle=sc;c.fillRect(X1-80,top,90,hullH);
+    c.strokeStyle="rgba(60,55,50,.9)";c.lineWidth=2.6;c.beginPath();c.moveTo(X0+30,cy+hullH*.12);c.bezierCurveTo(X0+120,cy+hullH*.12,X0+140,cy+hullH*.3,X0+240,cy+hullH*.3);c.lineTo(X1-120,cy+hullH*.3);c.stroke();
+    c.strokeStyle="rgba(150,140,120,.55)";c.lineWidth=.8;c.stroke();c.lineWidth=1}
   // panel seams
   c.strokeStyle="rgba(10,15,25,.35)";c.lineWidth=1;
   for(let x=X0+24;x<X1-30;x+=26){c.beginPath();c.moveTo(x+.5,top);c.lineTo(x+.5,bot);c.stroke()}
@@ -2358,7 +2462,8 @@ function drawShipArt(cv,up,opts={}){
   const sh=c.createLinearGradient(0,cy,0,bot);sh.addColorStop(0,"rgba(0,0,0,0)");sh.addColorStop(1,"rgba(0,0,0,.35)");c.fillStyle=sh;c.fillRect(X0,cy,L,hullH);
   c.restore();
   // rim light on the top edge
-  c.strokeStyle="rgba(255,255,255,.45)";c.lineWidth=1.2;c.beginPath();c.moveTo(X0+10,top+.5);c.lineTo(X1-95,top+.5);c.bezierCurveTo(X1-40,top+1.5,X1-6,cy-8,X1,cy+3);c.stroke();c.lineWidth=1;
+  c.strokeStyle="rgba(255,255,255,.45)";c.lineWidth=1.2;c.stroke(edge);c.lineWidth=1;
+  if(HS==="flagship"){const pg2=c.createLinearGradient(X1+20,0,X1+54,0);pg2.addColorStop(0,"rgba(224,184,74,0)");pg2.addColorStop(1,"#f0cf6a");c.fillStyle=pg2;c.beginPath();c.moveTo(X1+22,cy-1);c.lineTo(X1+54,cy+2);c.lineTo(X1+22,cy+5);c.closePath();c.fill()}
 
   // --- dorsal bridge tower
   const bx=X1-150,bw=70,bh=12+up.armor*1.5;
@@ -2745,6 +2850,9 @@ function drawBeing(c,b,ph,walking){
   else if(sp==="Vorrn")vorrn2(c,b,r,ph,sw);
   else if(sp==="Lumari")lumari2(c,b,r,ph,sw);
   else if(sp==="Ossari")ossari2(c,b,r,ph,sw);
+  else if(sp==="Krillian")krillian2(c,b,r,ph,sw);
+  else if(sp==="Skarr")skarr2(c,b,r,ph,sw);else if(sp==="Thexx")thexx2(c,b,r,ph,sw);else if(sp==="Selenn")selenn2(c,b,r,ph,sw);
+  else if(sp==="Drovath")drovath2(c,b,r,ph,sw);else if(sp==="Quarn")quarn2(c,b,r,ph,sw);else if(sp==="Myrr")myrr2(c,b,r,ph,sw);
   else alien2(c,b,r,ph,sw);
   c.restore()}
 
@@ -3024,12 +3132,155 @@ function alien2(c,b,r,ph,sw){ // peoples beyond the frontier: body plan picked f
   }
 }
 
+// Krillians: small, hunched, shrimp-like scavengers in patched-up gear. Same body every time; only their scavenged clothes differ.
+const KRILL_VEST=["#6b4a2f","#4a5a3a","#5a3a4a","#3a4a5a","#7a5a2a"];
+function krillian2(c,b,r,ph,sw){
+  const sk=b.col||"#c8ff5a",dk=shade(sk,-.5),band="#ff9a4a",vest=KRILL_VEST[Math.floor(r()*KRILL_VEST.length)],goggles=r()<.5,scarf=r()<.4;
+  // tail fan behind
+  c.save();c.translate(-8,-8);for(const a of [-.5,-.15,.2]){c.save();c.rotate(a+Math.PI*.9);const g=c.createLinearGradient(0,0,0,12);g.addColorStop(0,shade(sk,-.15));g.addColorStop(1,shade(sk,.25));c.fillStyle=g;
+    c.beginPath();c.moveTo(-2,0);c.quadraticCurveTo(-4,8,0,13);c.quadraticCurveTo(4,8,2,0);c.fill();c.restore()}c.restore();
+  // six thin walking legs (three pairs)
+  for(let i=0;i<3;i++){const p=ph+i*1.1;for(const far of [true,false]){c.save();c.translate(-4+i*4,-14);c.rotate((far?-1:1)*Math.sin(p)*.35+.1);
+    strokeC(c,far?shade(sk,-.4):shade(sk,-.2),1.6,()=>{c.moveTo(0,0);c.lineTo(1.5,7);c.lineTo(0,14)});c.restore()}}
+  // segmented, curled body
+  for(let k=0;k<5;k++){const y=-16-k*7.2,x=-4+k*1.6,w=8-k*.3;const g=c.createLinearGradient(x-w,0,x+w,0);g.addColorStop(0,dk);g.addColorStop(.35,shade(sk,.25));g.addColorStop(.7,sk);g.addColorStop(1,shade(sk,-.35));
+    c.fillStyle=g;c.beginPath();c.ellipse(x,y,w,4.6,-.12,0,Math.PI*2);c.fill();c.fillStyle="rgba(0,0,0,.18)";c.fillRect(x-w+1,y+3,w*2-2,1)}
+  c.fillStyle=band;c.globalAlpha=.85;c.beginPath();c.ellipse(-.8,-30.4,7.6,1.4,-.12,0,Math.PI*2);c.fill();c.globalAlpha=1;
+  // scavenged vest and bandolier
+  c.fillStyle=roundG(c,-8,8,vest);c.beginPath();c.moveTo(-7,-48);c.lineTo(7,-50);c.lineTo(7,-28);c.lineTo(-8,-26);c.closePath();c.fill();
+  c.fillStyle="rgba(0,0,0,.25)";c.fillRect(-2,-49,1,22);ell(c,3,-36,1.4,1.4,"#c9b16a");
+  strokeC(c,"#3a2a1c",1.6,()=>{c.moveTo(-7,-47);c.lineTo(7,-29)});for(let k=0;k<4;k++)ell(c,-4+k*3.2,-43+k*4,1,1.2,"#d8c070");
+  if(scarf){c.fillStyle="#b23a2b";c.beginPath();c.moveTo(-5,-52);c.lineTo(7,-53);c.lineTo(6,-49);c.lineTo(-4,-48);c.fill();c.beginPath();c.moveTo(-5,-51);c.lineTo(-10,-44+Math.sin(ph)*1.5);c.lineTo(-7,-44);c.fill()}
+  // little claw arms
+  for(const far of [true,false]){c.save();c.translate(4,-44);c.rotate((far?-.2:.4)+(far?1:-1)*sw*.3);
+    strokeC(c,far?shade(sk,-.35):shade(sk,-.1),2,()=>{c.moveTo(0,0);c.lineTo(3,7);c.lineTo(7,10)});
+    c.translate(7,10);c.fillStyle=far?shade(sk,-.3):sk;c.beginPath();c.moveTo(0,-1.5);c.quadraticCurveTo(4,-3,5,0);c.lineTo(2,0);c.lineTo(5,1.5);c.quadraticCurveTo(3,3,0,1.5);c.fill();c.restore()}
+  // head: rounded carapace with a long spiked rostrum
+  const hg=c.createRadialGradient(4,-60,1,6,-57,9);hg.addColorStop(0,shade(sk,.4));hg.addColorStop(.7,sk);hg.addColorStop(1,dk);
+  c.fillStyle=hg;c.beginPath();c.moveTo(-4,-54);c.quadraticCurveTo(-3,-64,5,-64);c.quadraticCurveTo(11,-63,13,-58);c.lineTo(22,-59);c.lineTo(13,-56);c.quadraticCurveTo(9,-52,2,-52);c.closePath();c.fill();
+  c.strokeStyle="rgba(0,0,0,.2)";c.beginPath();c.moveTo(-2,-60);c.quadraticCurveTo(4,-62,11,-59);c.stroke();
+  sheen(c,4,-62,3.5,1.5,.45);
+  // mouthparts: little twitching feelers
+  strokeC(c,dk,.7,()=>{c.moveTo(11,-54);c.lineTo(13,-50+Math.sin(ph*2)*.6);c.moveTo(9,-53);c.lineTo(10,-49)});
+  // eyes on stalks
+  for(const[x,h,far]of[[5,7,true],[8,8,false]]){strokeC(c,far?shade(sk,-.3):shade(sk,-.1),1.6,()=>{c.moveTo(x-1,-62);c.lineTo(x+1,-62-h)});
+    ell(c,x+1.4,-63-h,2.4,2.2,"#0b0b10");ell(c,x+2,-63.8-h,.7,.7,"#fff")}
+  if(goggles){c.strokeStyle="#5a4a3a";c.lineWidth=1.2;c.beginPath();c.moveTo(-3,-60);c.lineTo(10,-63);c.stroke();c.lineWidth=1;
+    for(const x of [2,6]){ell(c,x,-62.4+(x-2)*-.2,1.9,1.5,"#3a2f24");const gl=c.createRadialGradient(x+.4,-62.8,0,x+.4,-62.6,1.4);gl.addColorStop(0,"#fff6c0");gl.addColorStop(1,"#c98b2a");ell(c,x,-62.4+(x-2)*-.2,1.2,.9,gl)}}
+  // long whip antennae sweeping back
+  c.strokeStyle=shade(sk,-.25);c.lineWidth=.8;c.beginPath();c.moveTo(3,-63);c.bezierCurveTo(-2,-78,-14,-80,-22,-70+Math.sin(ph*.8)*2);c.moveTo(6,-63);c.bezierCurveTo(4,-82,-8,-90,-18,-84+Math.sin(ph*.8+1)*2);c.stroke();c.lineWidth=1;
+}
+
+// ---- six more peoples, each with a body of their own (0.78)
+function skarr2(c,b,r,ph,sw){ // tall armoured predator: digitigrade legs, black plating, barbed crest, red eyes
+  const ac=b.col||"#ff5470",pl="#26262d",pd="#141418";
+  const leg=(p,far)=>{c.save();c.translate(0,-46);c.rotate(Math.sin(p)*.34+.2);tap(c,20,9,6,far?pd:pl,1);c.translate(0,19);joint(c,3,far?pd:"#3a3a44");
+    c.rotate(-.75-Math.max(0,-Math.cos(p))*.3);tap(c,16,6,4.5,far?pd:pl);c.translate(0,15.5);c.rotate(.55-Math.sin(p)*.34);tap(c,11,4.5,3.6,far?pd:"#30303a");
+    c.translate(0,10.5);c.rotate(-.2);c.fillStyle="#0a0a0c";for(const x of [0,3.4,6.8]){c.beginPath();c.moveTo(x-1.4,0);c.lineTo(x+4.4,1.4);c.lineTo(x-1.4,2.4);c.fill()}c.restore()};
+  const arm=(p,far)=>{c.save();c.translate(1,-78);c.rotate(-Math.sin(p)*.3);tap(c,17,7,5.4,far?pd:pl,.8);c.translate(0,16);c.rotate(-.35);tap(c,15,5.4,4.4,far?pd:pl);
+    c.fillStyle=ac;c.globalAlpha=far?.4:.8;c.fillRect(-2.6,4,5.2,1.2);c.globalAlpha=1;c.translate(0,15);c.strokeStyle="#0a0a0c";c.lineWidth=1.2;
+    for(const a of [-.5,0,.5]){c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(Math.sin(a)*3,4,Math.sin(a)*4+2,6);c.stroke()}c.lineWidth=1;c.restore()};
+  arm(ph+Math.PI,true);leg(ph+Math.PI,true);leg(ph,false);
+  // plated torso with glowing red seams
+  c.fillStyle=roundG(c,-12,12,pl);c.beginPath();c.moveTo(-9,-84);c.lineTo(11,-85);c.lineTo(12,-62);c.lineTo(8,-46);c.lineTo(-7,-46);c.lineTo(-10,-62);c.closePath();c.fill();
+  c.strokeStyle=ac;c.globalAlpha=.85;c.lineWidth=.9;for(const y of [-75,-66,-56]){c.beginPath();c.moveTo(-9,y);c.lineTo(11,y-1);c.stroke()}c.globalAlpha=1;c.lineWidth=1;
+  sheen(c,5,-76,5,6,.18);
+  // spiked shoulders
+  c.fillStyle="#3a3a44";for(const x of [-6,6]){c.beginPath();c.ellipse(x,-83,6,4,0,0,Math.PI*2);c.fill();c.fillStyle="#0e0e12";c.beginPath();c.moveTo(x-2,-86);c.lineTo(x-1,-95);c.lineTo(x+2,-86);c.fill();c.fillStyle="#3a3a44"}
+  // long head, barbed crest, glowing eyes, jaw
+  c.fillStyle=roundG(c,-6,16,pl);c.beginPath();c.moveTo(-4,-86);c.quadraticCurveTo(0,-97,9,-96);c.lineTo(18,-91);c.lineTo(15,-87);c.lineTo(8,-85);c.lineTo(2,-84);c.closePath();c.fill();
+  c.fillStyle=pd;for(let k=0;k<5;k++){c.beginPath();c.moveTo(-2+k*3.4,-95.5+k*.6);c.lineTo(-7+k*3.4,-104+k*1.5);c.lineTo(1+k*3.4,-95+k*.6);c.fill()}
+  const ge=c.createRadialGradient(11,-92,0,11,-92,3.4);ge.addColorStop(0,"#fff0f0");ge.addColorStop(.35,ac);ge.addColorStop(1,"rgba(255,84,112,0)");c.fillStyle=ge;c.fillRect(7,-96,8,8);
+  c.strokeStyle="#0a0a0c";c.beginPath();c.moveTo(9,-87);c.lineTo(17,-89);c.stroke();c.fillStyle="#e8e2d0";for(const x of [11,14]){c.beginPath();c.moveTo(x,-88.4);c.lineTo(x+.8,-86.4);c.lineTo(x+1.6,-88.6);c.fill()}
+  arm(ph,false)}
+
+function thexx2(c,b,r,ph,sw){ // a pulsing organic mass that seems to swallow light; no face, only folds and dim glows
+  const col=b.col||"#d36bff",t=ph*.6,pulse=1+Math.sin(t*2)*.04;
+  for(let i=0;i<6;i++){c.save();c.translate(-14+i*5.6,-10);c.rotate(Math.sin(ph+i)*.25+(i-2.5)*.08);const g=c.createLinearGradient(0,0,0,12);g.addColorStop(0,shade(col,-.55));g.addColorStop(1,shade(col,-.8));c.fillStyle=g;
+    c.beginPath();c.moveTo(-3,0);c.quadraticCurveTo(-2,8,0,12);c.quadraticCurveTo(2,8,3,0);c.fill();c.restore()}
+  c.save();c.translate(0,-38);c.scale(pulse,1/pulse);
+  const body=()=>{c.beginPath();c.moveTo(-22,22);c.bezierCurveTo(-30,0,-24,-30,-4,-36);c.bezierCurveTo(14,-40,28,-22,26,0);c.bezierCurveTo(26,14,20,26,-22,22);c.closePath()};
+  const g=c.createRadialGradient(4,-10,2,0,-4,34);g.addColorStop(0,shade(col,-.2));g.addColorStop(.5,shade(col,-.55));g.addColorStop(1,"#08040c");c.fillStyle=g;body();c.fill();
+  c.save();body();c.clip();
+  c.strokeStyle="rgba(0,0,0,.45)";c.lineWidth=1.4;for(let k=0;k<6;k++){c.beginPath();c.moveTo(-24+k*8,22);c.bezierCurveTo(-20+k*7,4,-16+k*7,-14,-6+k*5,-34);c.stroke()}
+  c.strokeStyle=`rgba(255,200,255,${.08+Math.sin(t*2)*.04})`;c.lineWidth=.8;for(let k=0;k<5;k++){c.beginPath();c.moveTo(-20+k*8,20);c.bezierCurveTo(-17+k*7,2,-13+k*7,-16,-4+k*5,-32);c.stroke()}
+  const core=c.createRadialGradient(2,-6,0,2,-6,14);core.addColorStop(0,"rgba(0,0,0,.85)");core.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=core;c.fillRect(-20,-24,44,36);c.restore();
+  for(const[x,y,k]of[[10,-16,0],[16,-4,1.3],[-6,-22,2.1],[4,6,3.2]]){const a=.35+.35*Math.sin(t*2+k);const gl=c.createRadialGradient(x,y,0,x,y,4.5);gl.addColorStop(0,`rgba(255,190,255,${a})`);gl.addColorStop(1,"rgba(211,107,255,0)");c.fillStyle=gl;c.fillRect(x-5,y-5,10,10)}
+  c.restore();c.lineWidth=1}
+
+function selenn2(c,b,r,ph,sw){ // slender crystal being; faceted limbs, inner light that shimmers as they sing
+  const col=b.col||"#7fe3ff",t=ph*.8;
+  const shard=(pts,a)=>{c.fillStyle=`rgba(190,245,255,${a})`;c.beginPath();pts.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill();c.strokeStyle="rgba(230,255,255,.7)";c.lineWidth=.6;c.stroke();c.lineWidth=1};
+  const limb=(x,y,len,w,a,al)=>{c.save();c.translate(x,y);c.rotate(a);shard([[-w,0],[w,0],[w*.6,len*.55],[0,len],[-w*.6,len*.55]],al);c.restore()};
+  limb(-2,-46,46,3.4,Math.sin(ph)*.3,.35);limb(2,-46,46,3.4,-Math.sin(ph)*.3,.5);
+  const glow=c.createRadialGradient(1,-62,2,1,-62,30);glow.addColorStop(0,`rgba(140,240,255,${.35+Math.sin(t*3)*.12})`);glow.addColorStop(1,"rgba(127,227,255,0)");c.fillStyle=glow;c.fillRect(-30,-95,62,64);
+  shard([[-6,-82],[7,-84],[9,-66],[4,-46],[-4,-46],[-8,-64]],.55);
+  c.strokeStyle="rgba(255,255,255,.5)";c.lineWidth=.5;c.beginPath();c.moveTo(1,-83);c.lineTo(0,-47);c.moveTo(-6,-73);c.lineTo(8,-71);c.stroke();c.lineWidth=1;
+  limb(-4,-80,34,2.4,.25-sw*.3,.4);limb(5,-81,34,2.4,-.3+sw*.3,.55);
+  shard([[-4,-86],[3,-102],[10,-92],[8,-84]],.65);shard([[3,-102],[6,-110],[8,-100]],.5);
+  for(const[x,y]of[[5,-92],[8,-93]]){const e=c.createRadialGradient(x,y,0,x,y,2.6);e.addColorStop(0,"#ffffff");e.addColorStop(1,"rgba(127,227,255,0)");c.fillStyle=e;c.fillRect(x-3,y-3,6,6)}
+  // drifting sparkles: the song made visible
+  for(let k=0;k<6;k++){const a=t*1.4+k*1.05,x=12+Math.cos(a)*10+k*2,y=-90+Math.sin(a*1.3)*8-k*3;ell(c,x,y,.8,.8,`rgba(220,255,255,${.4+.4*Math.sin(a*2)})`)}}
+
+function drovath2(c,b,r,ph,sw){ // desert insect official: many antennae, stiff uniform coat, sash, badges, a datapad
+  const sk=b.col||"#c2b280",dk=shade(sk,-.45),coat="#4a4030",trim="#c9a64a";
+  const leg=(p,far)=>{c.save();c.translate(0,-34);c.rotate(Math.sin(p)*.35);tap(c,18,5,3.6,far?dk:shade(sk,-.2));c.translate(0,17.4);joint(c,2,dk);c.rotate(Math.max(0,-Math.cos(p))*.4);tap(c,16,3.6,2.6,far?dk:shade(sk,-.15));
+    c.translate(0,15.6);c.rotate(-Math.sin(p)*.35);c.fillStyle="#2a2418";c.beginPath();c.moveTo(-2.5,-1);c.lineTo(6,0);c.lineTo(5,2);c.lineTo(-2.5,2);c.fill();c.restore()};
+  leg(ph+Math.PI,true);leg(ph,false);
+  // long stiff coat with a sash and badges
+  c.fillStyle=roundG(c,-11,11,coat);c.beginPath();c.moveTo(-8,-76);c.lineTo(9,-77);c.lineTo(11,-30);c.lineTo(-10,-30);c.closePath();c.fill();
+  c.fillStyle=shade(coat,-.35);c.fillRect(-10,-33,21,3);c.strokeStyle=trim;c.lineWidth=.8;c.beginPath();c.moveTo(2,-77);c.lineTo(2,-31);c.stroke();
+  c.fillStyle="#7a2a2a";c.beginPath();c.moveTo(-8,-74);c.lineTo(-5,-76);c.lineTo(10,-48);c.lineTo(7,-46);c.fill();
+  for(const[x,y,cl]of[[5,-68,"#ffd36b"],[7,-63,"#7fe3ff"],[4,-61,"#c9a64a"]]){ell(c,x,y,1.4,1.4,cl);ell(c,x-.3,y-.3,.5,.5,"#fff")}
+  c.fillStyle=shade(coat,.15);c.fillRect(-9,-78,19,4);
+  // arm holding a datapad
+  c.save();c.translate(6,-72);c.rotate(.5+sw*.1);tap(c,13,4.4,3.6,coat);c.translate(0,12.6);c.rotate(-1.4);tap(c,11,3.6,3,coat);c.translate(0,11);
+  c.fillStyle="#1a1c24";c.fillRect(-1,-6,9,12);c.fillStyle="#7bea8c";for(let k=0;k<4;k++)c.fillRect(.5,-4.5+k*2.6,6-k%2*2,1);c.restore();
+  // narrow head: mandibles, small compound eyes, a crown of antennae
+  c.fillStyle=roundG(c,-5,10,sk);c.beginPath();c.moveTo(-3,-78);c.quadraticCurveTo(-2,-90,4,-91);c.quadraticCurveTo(10,-90,10,-84);c.lineTo(9,-79);c.lineTo(1,-77);c.closePath();c.fill();
+  strokeC(c,dk,.9,()=>{c.moveTo(9,-80);c.quadraticCurveTo(12,-78,10.5,-76);c.moveTo(7.6,-79);c.quadraticCurveTo(10,-76,8.4,-75)});
+  const ey=c.createRadialGradient(6,-86,0,6,-86,2.4);ey.addColorStop(0,"#fff3a0");ey.addColorStop(.6,"#7a5a10");ey.addColorStop(1,"#2a1a05");ell(c,6,-86,2.2,2,ey);
+  c.strokeStyle=dk;c.lineWidth=.8;for(let k=0;k<6;k++){const a=-1.9+k*.28;c.beginPath();c.moveTo(3,-90);c.quadraticCurveTo(3+Math.cos(a)*6,-96,3+Math.cos(a)*12,-90-Math.abs(Math.sin(a))*14);c.stroke();ell(c,3+Math.cos(a)*12,-90-Math.abs(Math.sin(a))*14,.9,.9,dk)}c.lineWidth=1}
+
+function quarn2(c,b,r,ph,sw){ // hulking raider in armour torn from other ships, rimed with frost, hung with trophies
+  const col=b.col||"#ff3b3b",plates=["#5a5f6b","#6b5a4a","#3a4a5a","#7a6a5a","#4a4a4a"],pr=rng(7);const frost="rgba(230,245,255,.75)";
+  const leg=(p,far)=>{c.save();c.translate(0,-34);c.rotate(Math.sin(p)*.28);tap(c,17,14,12,far?"#2a2d35":"#3a3d46",1.4);c.fillStyle=plates[far?4:1];c.fillRect(-7,6,14,8);c.fillStyle=frost;c.fillRect(-7,6,14,1);
+    c.translate(0,16);c.rotate(Math.max(0,-Math.cos(p))*.3);tap(c,15,12,11,far?"#24262d":"#33363e");c.translate(0,14.4);c.rotate(-Math.sin(p)*.28);
+    c.fillStyle="#1a1c22";c.beginPath();c.moveTo(-7,-4);c.lineTo(6,-4);c.quadraticCurveTo(12,-3,12,2);c.lineTo(-8,2);c.closePath();c.fill();c.fillStyle=frost;c.fillRect(-7,-4,13,.8);c.restore()};
+  const arm=(x,p,far)=>{c.save();c.translate(x,-70);c.rotate(-Math.sin(p)*.28);tap(c,17,13,11,far?"#2a2d35":"#3a3d46",2);c.fillStyle=plates[far?3:2];c.beginPath();c.ellipse(0,2,8.5,6,0,Math.PI,0);c.fill();c.fillStyle=frost;c.fillRect(-8,1.6,16,.9);
+    c.translate(0,16);c.rotate(-.2);tap(c,14,11,9,far?"#24262d":"#33363e");c.fillStyle="#5a2a22";c.fillRect(-5,7,10,6);ell(c,0,16,5.2,4.4,far?"#1e2026":"#2c2f36");c.restore()};
+  arm(-17,ph+Math.PI,true);leg(ph+Math.PI,true);leg(ph,false);
+  // patchwork torso of mismatched hull plates
+  c.fillStyle=roundG(c,-21,21,"#3a3d46");c.beginPath();c.moveTo(-20,-74);c.quadraticCurveTo(0,-79,20,-74);c.lineTo(16,-30);c.lineTo(-16,-30);c.closePath();c.fill();
+  for(let k=0;k<7;k++){const x=-17+pr()*24,y=-72+pr()*36,w=8+pr()*10,h=6+pr()*9;c.fillStyle=plates[Math.floor(pr()*plates.length)];c.fillRect(x,y,w,h);
+    c.fillStyle="rgba(0,0,0,.35)";c.fillRect(x,y+h-1,w,1);c.fillStyle=frost;c.fillRect(x,y,w,.8);c.fillStyle="#9aa0ad";ell(c,x+1.5,y+1.8,.6,.6,"#9aa0ad");ell(c,x+w-1.5,y+1.8,.6,.6,"#9aa0ad")}
+  c.fillStyle=col;c.globalAlpha=.8;c.fillRect(-16,-52,4,12);c.globalAlpha=1;
+  // trophies: tags and torn insignia hanging from a chain
+  c.strokeStyle="#8a8a8a";c.lineWidth=.8;c.beginPath();c.moveTo(-14,-70);c.quadraticCurveTo(0,-58,14,-70);c.stroke();c.lineWidth=1;
+  for(const[x,y,cl]of[[-8,-64,"#7bea8c"],[-2,-61,"#ffd36b"],[4,-61,"#9db4ff"],[10,-64,"#ff9f5a"]]){c.fillStyle=cl;c.beginPath();c.moveTo(x-2,y);c.lineTo(x+2,y);c.lineTo(x+1.4,y+4);c.lineTo(x-1.4,y+4);c.fill()}
+  c.fillStyle="#1e1f24";c.fillRect(-16,-33,32,4);
+  // heavy helmet with a glowing visor slit and icy breath
+  c.fillStyle=roundG(c,-8,13,"#4a4e58");c.beginPath();c.moveTo(-6,-76);c.quadraticCurveTo(-6,-90,4,-90);c.quadraticCurveTo(13,-90,13,-80);c.lineTo(12,-75);c.lineTo(-5,-75);c.closePath();c.fill();
+  c.fillStyle=frost;c.fillRect(-4,-89,14,1);c.fillStyle="#0a0a0c";c.fillRect(2,-84,11,3);
+  const vg=c.createLinearGradient(2,0,13,0);vg.addColorStop(0,"rgba(255,59,59,.2)");vg.addColorStop(1,col);c.fillStyle=vg;c.fillRect(3,-83.4,10,1.6);
+  for(let k=0;k<3;k++){const a=.18-k*.05+.06*Math.sin(ph*1.5+k);ell(c,16+k*3,-78-k*1.2,1.6+k,1.2+k*.6,`rgba(230,245,255,${a})`)}
+  arm(17,ph,false)}
+
+function myrr2(c,b,r,ph,sw){ // barely there: a shimmering, half-seen shape, hard to look at straight on
+  const col=b.col||"#e8eeff",t=ph*.5;
+  const form=(dx,dy,a)=>{c.save();c.translate(dx,dy);c.globalAlpha=a;const g=c.createLinearGradient(0,-100,0,0);g.addColorStop(0,"rgba(232,238,255,.9)");g.addColorStop(.6,"rgba(200,210,255,.5)");g.addColorStop(1,"rgba(200,210,255,0)");c.fillStyle=g;
+    c.beginPath();c.moveTo(0,-98);c.bezierCurveTo(10,-96,12,-80,8,-70);c.bezierCurveTo(14,-50,10,-20,4+Math.sin(t*2)*2,0);c.lineTo(-4+Math.sin(t*2+1)*2,0);c.bezierCurveTo(-10,-20,-14,-50,-8,-70);c.bezierCurveTo(-12,-80,-10,-96,0,-98);c.fill();c.restore()};
+  form(Math.sin(t*3)*3,0,.18);form(-Math.sin(t*2.3)*4,1,.14);form(0,0,.28);
+  c.save();c.globalAlpha=.5;c.strokeStyle="rgba(240,245,255,.6)";c.lineWidth=.5;for(let k=0;k<5;k++){const y=-90+k*16+Math.sin(t*4+k)*3;c.beginPath();c.moveTo(-10,y);c.quadraticCurveTo(0,y-3,10,y+1);c.stroke()}c.restore();
+  for(const x of [-2.5,3]){const e=c.createRadialGradient(x,-84,0,x,-84,3);e.addColorStop(0,`rgba(255,255,255,${.6+.3*Math.sin(t*3)})`);e.addColorStop(1,"rgba(232,238,255,0)");c.fillStyle=e;c.fillRect(x-3,-87,6,6)}
+  c.globalAlpha=1;c.lineWidth=1}
+
 // portrait: the same figure, zoomed to head and shoulders, on a lit backdrop
 function drawPortrait(cv,b,frame){
   if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth||cv.width,H=cv.clientHeight||cv.height;
   cv.width=W*dpr;cv.height=H*dpr;const c=cv.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);
   const bg=c.createRadialGradient(W*.55,H*.35,4,W*.5,H*.5,W);bg.addColorStop(0,shade(b.col||speciesColor(b.sp),-.35));bg.addColorStop(1,"#05070f");c.fillStyle=bg;c.fillRect(0,0,W,H);
-  const top=frame?frame.top:({Ossari:-106,Kesh:-98,Lumari:-96,Vorrn:-92,Alien:-102}[b.sp]??-100),bottom=top+(frame?frame.span:({Ossari:50,Kesh:52,Lumari:54,Vorrn:46,Alien:62}[b.sp]??40));
+  const top=frame?frame.top:({Ossari:-106,Kesh:-98,Lumari:-96,Vorrn:-92,Krillian:-84,Skarr:-108,Thexx:-80,Selenn:-114,Drovath:-110,Quarn:-96,Myrr:-106,Alien:-102}[b.sp]??-100),bottom=top+(frame?frame.span:({Ossari:50,Kesh:52,Lumari:54,Vorrn:46,Krillian:44,Skarr:46,Thexx:70,Selenn:52,Drovath:50,Quarn:50,Myrr:60,Alien:62}[b.sp]??40));
   const s=H/(bottom-top);c.save();c.translate(W/2-(frame?frame.cx:4)*s,-top*s);c.scale(s,s);drawBeing(c,b,0,false);c.restore();
   c.strokeStyle="rgba(255,255,255,.12)";c.strokeRect(.5,.5,W-1,H-1);
 }
@@ -3166,13 +3417,13 @@ function renderSysCard(){
         p.alienColony&&colVisible(s,p)?`${colonyButtons(s,i)}<button disabled title="The colony controls who lands">No rover landings</button>`:
         p.native&&k?`<button disabled>Landing forbidden</button>`:!k?"":
         `<button class="${k&&!p.colony?"primary":""}" id="sLand" ${sh.fuel<landFuel?"disabled":""}>Land · ${landFuel} fuel</button>${p.colony?colonyButtons(s,i):""}`}
-      ${k&&!p.colony&&!p.native&&!p.alienOutpost&&!s.alienBase&&!sysv.remote?(()=>{const o=depotOf(p);if(o)return `<button id="sDepot" ${o.siege||o.fuel<1||sh.fuel>=tankCap(sh.up.tank)-.5?"disabled":""}>Refuel from depot</button>`;
+      ${k&&!p.colony&&!p.native&&!p.alienOutpost&&!p.alienColony&&!s.alienBase&&!sysv.remote?(()=>{const o=depotOf(p);if(o)return `<button id="sDepot" ${o.siege||o.fuel<1||sh.fuel>=tankCap(sh.up.tank)-.5?"disabled":""}>Refuel from depot</button>`;
         const ok=sh.credits>=DEPOT_COST&&groupAmt("metal")>=DEPOT_METAL&&staffed("eng");return `<button id="sBuild" ${ok?"":"disabled"} title="${DEPOT_COST} credits and ${DEPOT_METAL} tons of metal">Build fuel depot</button>`})():""}
-      ${k&&!p.colony&&!p.native&&!p.alienOutpost&&!s.home&&!s.unknown?(isReported(s,i)?'<span class="tag base">Reported</span>':`<button id="sRec">Recommend colony</button>`):""}
+      ${k&&!p.colony&&!p.native&&!p.alienOutpost&&!p.alienColony&&!s.home&&!s.unknown?(isReported(s,i)?'<span class="tag base">Reported</span>':`<button id="sRec">Recommend colony</button>`):""}
       <button id="sLeave">Leave orbit</button>`;
   }
   el.innerHTML=`<div class="row" style="justify-content:space-between"><h3>${esc(p.name)}</h3>${inOrbit?'<span class="tag home">In orbit</span>':""}</div>
-    ${(()=>{const o=depotOf(p);if(!o)return k&&inOrbit&&!p.colony&&!p.native&&(p.alienOutpost||s.alienBase)?`<p class="hint">You can't build a depot here. The ${esc(def(p.alienOutpost||s.alienBase).name)} already have ${p.alienOutpost?"an outpost on this planet":"a starbase in this system"}.</p>`:k&&inOrbit&&!p.colony&&!p.native?`<p class="hint">A fuel depot here costs ${DEPOT_COST} cr + ${DEPOT_METAL} t metal and makes about ${depotRate(p)} fuel a day.${!staffed("eng")?" Needs an engineer on duty.":""}</p>`:"";
+    ${(()=>{const o=depotOf(p);if(!o)return k&&inOrbit&&!p.colony&&!p.native&&(p.alienOutpost||p.alienColony||s.alienBase)?`<p class="hint">You can't build a depot or recommend a colony here. The ${esc(def(p.alienOutpost||p.alienColony||s.alienBase).name)} already have ${p.alienOutpost?"an outpost on this planet":p.alienColony?"a colony on this planet":"a starbase in this system"}.</p>`:k&&inOrbit&&!p.colony&&!p.native?`<p class="hint">A fuel depot here costs ${DEPOT_COST} cr + ${DEPOT_METAL} t metal and makes about ${depotRate(p)} fuel a day.${!staffed("eng")?" Needs an engineer on duty.":""}</p>`:"";
       return `<div class="item" style="border-color:${o.siege?"var(--danger)":"var(--green)"}"><div>Your fuel depot${o.siege?' <span class="tag" style="color:var(--danger)">Under attack</span>':""}<div class="d">${Math.round(o.fuel)} / ${o.cap} fuel stored · makes ${depotRate(p)} a day</div></div><div></div></div>`})()}
     ${colonyHtml(s,i,inOrbit)}
     ${p.alienOutpost&&aoVisible(p)?`<div class="item" style="border-color:${def(p.alienOutpost).color}"><div>${esc(def(p.alienOutpost).name)} outpost<div class="d">Armed and watched. Outsiders can't land here.${inOrbit?" "+alienOutpostDealHtml(s,i).replace(/<[^>]+>/g,"").replace(/^Buy fuel.*/,"They'll sell you fuel."):""}</div></div><div></div></div>`:""}
@@ -3656,6 +3907,8 @@ function loungeState(){
 function loungeSay(t){const L=port.lounge;L.lines.unshift(t);L.lines=L.lines.slice(0,6)}
 function talkTo(id){
   const L=port.lounge,p=L.pats.find(x=>x.id===id),sh=ship(),s=here();if(!p||L.talked[id])return;L.talked[id]=true;
+  if(p.kind==="bartender"&&!L.toast&&!tributeOwned()&&Math.random()<.12){L.toast=true;
+    loungeSay(`${p.name} taps a glass for quiet and raises it high. “To the finest captain who ever lived. Wherever he's gone, may it be somewhere worth exploring.” The room goes still, and glasses rise all around you.`);renderRoom();return}
   if(p.kind==="bartender"){const kr=L.pats.some(x=>x.kind==="krillian");loungeSay(`${p.name}: “${kr&&Math.random()<.6?pick(Math.random,BAR_KRILL)+" Anyway. ":""}What'll it be? Buy a drink and I'll tell you what I hear.”`)}
   else if(p.kind==="krillian"){const k=krillFoe();if(!k.met){k.met=true;logMsg("You met your first Krillian, in a cantina. Of course.")}
     let said=k.stiffed?(k.stiffed--,pick(Math.random,KRILL_EXCUSE)):pick(Math.random,KRILL_SAYS);
@@ -3735,6 +3988,7 @@ function loungeHtml(){
     <div class="member"><div class="log" style="max-height:none">${L.lines.map(l=>`<div>${linkify(l)}</div>`).join("")}</div></div>
     <div class="shop">
       <div class="item"><div>Buy a drink<div class="d">8 cr · the bartender shares what they hear</div></div><button class="sm" id="lDrink" ${sh.credits<8?"disabled":""}>8 cr</button></div>
+      ${L.toast&&!L.toastDone?`<div class="item" style="border-color:#e0b84a"><div><span style="color:#f0d890">Join the toast</span><div class="d">Raise your glass with the room</div></div><button class="sm" id="lToast" style="border-color:#e0b84a;color:#f0d890">Raise a glass</button></div>`:""}
       <div class="item"><div>Buy a round for the crew<div class="d">Heals and cheers everyone aboard · builds your Charisma</div></div><button class="sm" id="lRound" ${L.round||sh.credits<round?"disabled":""}>${L.round?"Done tonight":round+" cr"}</button></div>
       ${L.chipOffer&&!L.chipBought?`<div class="item"><div>Old data chip<div class="d">A spacer's find, covered in Vael glyphs</div></div><button class="sm" id="lChip" ${sh.credits<150?"disabled":""}>150 cr</button></div>`:""}
       <div class="item"><div>Dice with the spacers<div class="d">Double or nothing · ${3-L.dice} games left tonight</div></div><div class="row" style="gap:4px"><button class="sm" data-dice="25" ${L.dice>=3||sh.credits<25?"disabled":""}>25</button><button class="sm" data-dice="100" ${L.dice>=3||sh.credits<100?"disabled":""}>100</button></div></div>
@@ -3746,7 +4000,7 @@ function loungeHtml(){
 function wireLounge(el){
   el.querySelectorAll("[data-talk]").forEach(b=>b.onclick=()=>talkTo(b.dataset.talk));
   const on=(id,f)=>{const b=el.querySelector("#"+id);if(b)b.onclick=f};
-  on("lDrink",buyDrink);on("lRound",buyRound);
+  on("lDrink",buyDrink);on("lRound",buyRound);on("lToast",joinToast);
   on("lChip",()=>{const sh=ship(),L=port.lounge;if(sh.credits<150)return;sh.credits-=150;L.chipBought=true;
     if(discoverFragment("chip"))loungeSay("Your science officer cracks the chip open. It's a Vael record.");else loungeSay("The chip is corrupted. Whatever was on it is gone.");renderRoom();changed()});
   el.querySelectorAll("[data-kjob]").forEach(b=>b.onclick=()=>takeKrillJob(b.dataset.kjob));
@@ -4932,7 +5186,7 @@ function ionHtml(){const sh=ship();if(!G.vparts||!G.vparts.length)return "";
 window.addEventListener("keydown",e=>{if(gameMode!=="captain"||!G.ship||typing(e)||!$("modal").hidden||land||(port&&port.open))return;
   if(e.key==="1"){e.preventDefault();toggleShields();if(!enc)renderCaptain()}else if(e.key==="2"){e.preventDefault();toggleArm();if(!enc)renderCaptain()}else if(e.key==="3"){e.preventDefault();toggleIon();if(!enc)renderCaptain()}});
 
-const VERSION="0.77"; // bump with every change
+const VERSION="0.78"; // bump with every change
 
 // =====================================================================
 // ---------- AUTOMATIC BACKUPS THAT SURVIVE CLEARING THE BROWSER ----------
@@ -4979,7 +5233,7 @@ function offerCloudRestore(){const m=SB.cloudInfo;if(!m)return;const localDay=G&
   if(m.gid&&m.gid===gameId())return;                       // same game: nothing to offer
   // a fresh or different game in this browser, while the cloud has another: offer it
   if(localDay>=m.day&&G.ship&&!m.gid)return;
-  confirmBox(`A cloud backup of your game was found (${m.sum}, day ${m.day}, saved ${new Date(m.at).toLocaleString()}). This browser has ${G&&G.ship?`day ${localDay}`:"no game in progress"}. Restore the cloud backup?`,restoreCloud);$("mLoad").textContent="Restore it"}
+  confirmBox(`A cloud backup of your game was found (${m.sum}, stardate ${stardate(m.day)}, saved ${new Date(m.at).toLocaleString()}). This browser has ${G&&G.ship?`stardate ${stardate(localDay)}`:"no game in progress"}. Restore the cloud backup?`,restoreCloud);$("mLoad").textContent="Restore it"}
 async function restoreCloud(){try{const g=await cloudLoad();if(!g||!g.systems)return toast("The cloud backup couldn't be read");backupNow("restore");if(!g.gid&&SB.cloudInfo)g.gid=SB.cloudInfo.gid;loadSave(g);SB.replaceOK=false;toast("Cloud backup restored");renderSafeBackup()}catch{toast("The cloud backup couldn't be read")}}
 
 // ---- backup file (downloaded copy of the game)
@@ -5008,7 +5262,7 @@ function renderSafeBackup(){const el=$("safeBackup");if(!el)return;const when=t=
   let body="";
   if(inViewer()){const m=SB.cloudInfo;
     body=SB.cloud?`<p class="hint" style="color:var(--text)">Your game is backed up automatically to your claude.ai account every few minutes while you play. It survives clearing this browser's data and follows you to other browsers and devices where you open this game.</p>
-      <div class="shop"><div class="item"><div>Cloud backup<div class="d">${m?`${esc(m.sum)} · day ${m.day} · ${when(m.at)}`:"Not saved yet"}${SB.err?` · <span style="color:var(--danger)">${esc(SB.err)}</span>`:""}</div></div><div class="row" style="gap:4px"><button class="sm" id="sbCloudNow">Back up now</button>${m?`<button class="sm" id="sbCloudLoad">Restore</button>`:""}</div></div></div>
+      <div class="shop"><div class="item"><div>Cloud backup<div class="d">${m?`${esc(m.sum)} · stardate ${stardate(m.day)} · ${when(m.at)}`:"Not saved yet"}${SB.err?` · <span style="color:var(--danger)">${esc(SB.err)}</span>`:""}</div></div><div class="row" style="gap:4px"><button class="sm" id="sbCloudNow">Back up now</button>${m?`<button class="sm" id="sbCloudLoad">Restore</button>`:""}</div></div></div>
       ${cloudConflict()?`<p class="hint" style="color:var(--amber)">The cloud holds a different game than the one you're playing, so it isn't being overwritten. Restore it, or press Back up now to replace it with this game.</p>`:""}`
       :`<p class="hint">Cloud backup isn't available in this view. Use Export, or the downloaded game file's automatic backup file.</p>`}
   else if(fsOK()){body=SB.handle?`<div class="shop"><div class="item"><div>Backup file: ${esc(SB.fileName)}<div class="d">${SB.needsPerm?`<span style="color:var(--amber)">Paused. Your browser needs you to allow it again after a restart.</span>`:`Rewritten automatically every few minutes while you play${SB.fileAt?` · last ${when(SB.fileAt)}`:""}.`}${SB.err?` <span style="color:var(--danger)">${esc(SB.err)}</span>`:""}</div></div><div class="row" style="gap:4px">${SB.needsPerm?`<button class="sm primary" id="sbResume">Resume</button>`:`<button class="sm" id="sbFileNow">Back up now</button>`}<button class="sm" id="sbPick">Change file</button></div></div></div>`
@@ -5016,7 +5270,7 @@ function renderSafeBackup(){const el=$("safeBackup");if(!el)return;const when=t=
   else body=`<p class="hint" style="color:var(--text)">${SB.off?"Automatic backup downloads are off.":"Every 10 game days, a backup file is saved to your Downloads folder automatically. It survives clearing your browser."}</p><div class="row"><button class="sm" id="sbDlNow">Download a backup now</button><button class="sm" id="sbDlToggle">${SB.off?"Turn on":"Turn off"}</button></div>`;
   el.innerHTML=`<h2 style="margin-top:6px">Automatic backup</h2>${body}<div class="row" style="margin-top:4px"><button class="sm" id="sbLoadFile">Load a backup file</button></div>`;
   const on=(id,f)=>{const b=$(id);if(b)b.onclick=f};
-  on("sbCloudNow",()=>{if(cloudConflict()){confirmBox(`The cloud holds a different game (${SB.cloudInfo.sum}, day ${SB.cloudInfo.day}). Replace it with the game you're playing now?`,()=>{SB.replaceOK=true;cloudSave(true)});$("mLoad").textContent="Replace it";return}cloudSave(true)});on("sbCloudLoad",()=>{const m=SB.cloudInfo;confirmBox(`Replace your current game (${saveSummary(G)}) with the cloud backup (${m.sum}, day ${m.day})? Your current game is backed up in this browser first.`,restoreCloud);$("mLoad").textContent="Restore"});
+  on("sbCloudNow",()=>{if(cloudConflict()){confirmBox(`The cloud holds a different game (${SB.cloudInfo.sum}, stardate ${stardate(SB.cloudInfo.day)}). Replace it with the game you're playing now?`,()=>{SB.replaceOK=true;cloudSave(true)});$("mLoad").textContent="Replace it";return}cloudSave(true)});on("sbCloudLoad",()=>{const m=SB.cloudInfo;confirmBox(`Replace your current game (${saveSummary(G)}) with the cloud backup (${m.sum}, stardate ${stardate(m.day)})? Your current game is backed up in this browser first.`,restoreCloud);$("mLoad").textContent="Restore"});
   on("sbPick",chooseBackupFile);on("sbResume",resumeBackupFile);on("sbFileNow",()=>fileSave(true));on("sbLoadFile",loadBackupFile);
   on("sbDlNow",()=>downloadBackup(`starforge-backup-day${G.ship?G.ship.day||0:0}.json`));on("sbDlToggle",()=>{SB.off=!SB.off;try{localStorage.setItem(KEY+".dloff",SB.off?"1":"0")}catch{}renderSafeBackup()});
 }
@@ -5040,7 +5294,7 @@ const ABOUT=[
 <p class="hint">Version ${typeof VERSION!=="undefined"?VERSION:""}</p>`}
 ];
 // CHANGELOG:BEGIN (generated from CHANGELOG.md)
-const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
+const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.78</h3>\n<ul>\n<li><b>Stardate.</b> Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.</li>\n<li><b>Ship skins.</b> Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.</li>\n<li><b>A hidden tribute</b> to a beloved captain, waiting to be found.</li>\n<li><b>Every species has its own look.</b> The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.</li>\n<li>You can no longer colonize a planet that already has an alien colony.</li>\n<li>Friendly visitors in the starport corridor now look like their own species.</li>\n</ul>\n<h3>0.77.1</h3>\n<ul>\n<li>Updated title screen text.</li>\n</ul>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
 // CHANGELOG:END
 const MANUAL=[
  {t:"Welcome",h:`<h3>Welcome aboard, Captain</h3>
@@ -5096,7 +5350,7 @@ const MANUAL=[
 <p>Dock at a starbase, then choose <b>Enter spaceport</b> to walk around. Walk left and right with A/D or the arrow keys, and press W, Up, Z or , at a doorway to go inside. Here's what you'll find:</p>
 <table>
 <tr><th>Place</th><th>What it's for</th></tr>
-<tr><td><b>Shipyard</b></td><td>Buy ship and rover upgrades and load torpedoes. Hover over an upgrade to preview it on your ship. You can also rename your ship here, fit crew quarters and a med bay, choose a paint scheme, and have your ship's name painted on the hull.</td></tr>
+<tr><td><b>Shipyard</b></td><td>Buy ship and rover upgrades and load torpedoes. Hover over an upgrade to preview it on your ship. You can also rename your ship here, fit crew quarters and a med bay, and change your ship's look: hull designs, engine glows, paint schemes, and your ship's name painted on the hull. Looks never change how the ship performs.</td></tr>
 <tr><td><b>Trade Depot</b></td><td>Three counters: <i>Ship</i> (refuel, repair, medical bay, insurance), <i>Sell</i> (minerals, relics and wildlife specimens) and <i>Buy</i> (minerals).</td></tr>
 <tr><td><b>Personnel</b></td><td>Assign stations, train any skill or hit points, and hire new crew from the <i>For hire</i> list.</td></tr>
 <tr><td><b>Lounge</b></td><td>Buy a drink and talk. Spacers trade rumors and star charts, alien envoys share news from their people, and your own crew sometimes pick up new skills over a good conversation. The bartender also sells star charts, tips and other information.</td></tr>
@@ -5130,9 +5384,10 @@ const MANUAL=[
 <h3>Making a living</h3>
 <ul>
 <li><b>Survey data</b> from scans sells automatically when you dock.</li>
-<li><b>Colonies:</b> recommend worlds with good habitability to the Colony Office from orbit. Good picks pay a bonus. Poor ones get you fined.</li>
+<li><b>Colonies:</b> recommend worlds with good habitability to the Colony Office from orbit. Worlds that already have an alien colony are off limits. Good picks pay a bonus. Poor ones get you fined.</li>
 <li><b>Fuel depots:</b> build one in orbit around any scanned planet to make fuel over time. Depots in unfriendly space may come under attack.</li>
 <li><b>Radio:</b> if you're stranded, call for a fuel delivery or a tow. It's expensive, but it beats drifting.</li>
+<li><b>Stardate:</b> today's date is shown just above the map coordinates.</li>
 <li><b>Rumors &amp; Leads</b> (in the Log tab) collects tips from travelers. Place names and coordinates are clickable and take you to the map.</li>
 </ul>`},
  {t:"Encounters",h:`<h3>Meeting other ships</h3>
@@ -5260,7 +5515,7 @@ function titleUpdNote(){const n=$("tUpdNote");if(!n)return;n.innerHTML=typeof UP
 // =====================================================================
 const title={raf:0,t:0,stars:null};
 function showTitle(){const el=$("title");el.hidden=false;$("tVer").textContent="Version "+VERSION;titleUpdNote();
-  const sh=G&&G.ship;$("tSave").textContent=sh?`${G.seedText?`Galaxy “${G.seedText}”`:"Your galaxy"} · Day ${sh.day||0} · ${sh.name}`:"No captain's game yet. Captain starts one.";
+  const sh=G&&G.ship;$("tSave").textContent=sh?`${G.seedText?`Galaxy “${G.seedText}”`:"Your galaxy"} · Stardate ${stardate(sh.day)} · ${sh.name}`:"No captain's game yet. Captain starts one.";
   $("tCapt").textContent=sh?"Continue as Captain":"Captain";
   const cv=$("titleCv");title.stars=null;cancelAnimationFrame(title.raf);let last=performance.now();
   const loop=now=>{if($("title").hidden)return;const dt=Math.min(.05,(now-last)/1000);last=now;title.t+=dt;
@@ -5287,6 +5542,9 @@ const WANT_MULT=1.8;
 const wantText=(key)=>{const w=wantsOf(key);return [w.minerals.join(" and "),w.relics?"Vael relics":"",w.fauna?"live wildlife specimens":""].filter(Boolean).join(", ")};
 // alien colonies: 1-3 per species, inside their territory, on the friendliest worlds
 function ensureAlienColonies(){
+  // a colony of yours that was founded on an alien colony world (older versions allowed it) keeps the planet
+  for(const sy of G.systems)for(const p of sy.planets)if(p.colony&&p.alienColony){delete p.alienColony;delete p.colonyName}
+
   for(const a of G.aliens||[]){if(a.colsMade)continue;const h=alienSys(a);if(!h)continue;a.colsMade=true;const r=rng(hashStr("col:"+a.key)+G.seed*5);const d=def(a.key);
     const good={Temperate:4,Ocean:3,Desert:2,Rock:2,Frozen:1,Molten:1};
     const cands=[];for(const s of G.systems){if(s.deep||s.unknown||s.inNeb||s.vael||Math.hypot(s.x-h.x,s.y-h.y)>a.radius)continue;
@@ -5329,7 +5587,7 @@ function openColony(s,i){
   const r=rng(Date.now()),folk=[];
   const look=alien?(CREW_LOOK[ctx.key]||"Alien"):"Human";
   for(let k=0,n=rint(r,2,4);k<n;k++){if(alien)folk.push({sp:look,col:d.color,seed:Math.floor(r()*1e9)});else{const sp=pick(r,["Human","Human","Human","Lumari","Vorrn"]);folk.push({sp,col:speciesColor(sp),seed:Math.floor(r()*1e9)})}}
-  if(r()<.25)folk.push({sp:"Alien",col:KRILL_DEF.color,seed:4242});
+  if(r()<.25)folk.push({sp:"Krillian",col:KRILL_DEF.color,seed:Math.floor(r()*1e9)});
   port.npcs=folk.slice(0,5).map(f=>({...f,x:r()*HALL_LEN,v:(r()<.5?-1:1)*(18+r()*28),h:.92+r()*.16,pause:r()*2}));
   logMsg(alien?`Landed at ${ctx.name}, a ${d.name} colony on ${p.name}.`:`Visited your colony on ${p.name}.`);
   sizePort();cancelAnimationFrame(port.raf);let last=performance.now();
@@ -5384,7 +5642,7 @@ function colonyHallHtml(){const ctx=port.colony,sh=ship();
       <p class="hint" style="color:#ffd36b">They pay extra for ${esc(wantText(ctx.key))}.</p>
       ${(ctx.who=`The ${d.name} official`,ctx.title="The official will sell what the colony knows",infoHtml(ctx))}`}
   const p=ctx.p,age=(sh.day||0)-p.colony.founded+colBoost(p.colony);
-  return `<div class="data" style="font-size:16px">${esc(p.name)} · <b>${COLONY_STAGES[p.colony.stage]}</b> · founded day ${p.colony.founded} (${(sh.day||0)-p.colony.founded} days ago)${p.colony.boost?` · your funding saved ${colBoost(p.colony)} days`:""}</div>
+  return `<div class="data" style="font-size:16px">${esc(p.name)} · <b>${COLONY_STAGES[p.colony.stage]}</b> · founded stardate ${stardate(p.colony.founded)} (${(sh.day||0)-p.colony.founded} days ago)${p.colony.boost?` · your funding saved ${colBoost(p.colony)} days`:""}</div>
     <p class="hint" style="color:var(--text)">${p.colony.stage===1?"A handful of prefab domes and a lot of hope.":p.colony.stage===2?"Streets, workshops and a school. The colonists are proud of what they've built.":"A busy town with its own starbase overhead."}</p>
     <p class="hint">${p.colony.stage===1?`Grows into a full colony in about ${Math.max(0,30-age)} days.`:p.colony.stage===2?`Builds its own starbase in about ${Math.max(0,90-age)} days.`:"Fully established."}</p>${fundHtml()}`}
 
@@ -5411,7 +5669,7 @@ const BAR_KRILL=["Watch your credits around that one. Krillians.","I serve 'em b
 function krillFoe(){G.krill=G.krill||{key:"krillian",att:KRILL_DEF.base,met:false,known:true,radius:0,trust:0};return G.krill}
 const krillPayoff=()=>Math.round((350+((ship().day||0)*1.5)+Math.random()*250)*priceMult()/10)*10;
 // they turn up in cantinas everywhere, now and then
-function krillianPatron(r,col){if(r()>=(col?.35:.3))return null;return {id:"kr",kind:"krillian",name:pick(r,KRILL_NAMES),sp:"Alien",col:KRILL_DEF.color,seed:hashStr("krill")+Math.floor(r()*9)}}
+function krillianPatron(r,col){if(r()>=(col?.35:.3))return null;return {id:"kr",kind:"krillian",name:pick(r,KRILL_NAMES),sp:"Krillian",col:KRILL_DEF.color,seed:hashStr("krill")+Math.floor(r()*9)}}
 // raids on the far outskirts
 function maybeKrillianRaid(sys){if(sys.unknown||sys.deep)return false;const R=G.radius||130;if(Math.hypot(sys.x,sys.y)<R-80||Math.random()>=.1)return false;
   const k=krillFoe();startEncounter(k,false,true);enc.fighting=true;enc.reinfActive=false;enc.payoff=krillPayoff();
@@ -5443,8 +5701,8 @@ function takeKrillJob(k){const L=port.lounge,sh=ship(),cost=kJobCost(k);if(!L||!
   if(Math.random()<kVanish()){G.krill=krillFoe();G.krill.stiffed=(G.krill.stiffed||0)+1;
     loungeSay(`${who} pockets your ${cost} credits, says “Back in a moment,” and walks out the airlock door. You don't see them again.`);logMsg(`A Krillian named ${who} took ${cost} credits for a job and vanished.`);renderRoom();changed();return}
   G.krill=krillFoe();G.krill.trust=(G.krill.trust||0)+1;const day=sh.day||0;
-  if(k==="smuggle"){sh.krSmuggle=day+12;loungeSay(`${who}: “Your cargo is now invisible. Not literally. Mostly literally.”`);logMsg(`Krillian smugglers will slip you past tolls and patrols in unfriendly space until day ${day+12}.`)}
-  else if(k==="raid"){sh.krRaid={key:target,until:day+15,due:day+3};loungeSay(`${who}: “The ${def(target).name}? Oh, we love hitting them. We'd do it for free. We won't, but we would.”`);logMsg(`Krillians will raid the ${def(target).name} until day ${day+15}. Their ships will trouble you less, and you'll get a cut.`)}
+  if(k==="smuggle"){sh.krSmuggle=day+12;loungeSay(`${who}: “Your cargo is now invisible. Not literally. Mostly literally.”`);logMsg(`Krillian smugglers will slip you past tolls and patrols in unfriendly space until stardate ${stardate(day+12)}.`)}
+  else if(k==="raid"){sh.krRaid={key:target,until:day+15,due:day+3};loungeSay(`${who}: “The ${def(target).name}? Oh, we love hitting them. We'd do it for free. We won't, but we would.”`);logMsg(`Krillians will raid the ${def(target).name} until stardate ${stardate(day+15)}. Their ships will trouble you less, and you'll get a cut.`)}
   else{let tip=null;{const pt=tellAboutPart(`${who}, a Krillian`);if(pt)tip=`There's a piece of old Vael machinery in the ruins on ${pt}`;else{const ins=tellAboutInstallation(`${who}, a Krillian`);if(ins)tip=`Need fuel? Try ${ins}. They'll sell, if they like your face`}}
     tip=tip||(()=>{const t=G.systems.filter(x=>!x.scanned&&!x.rumor&&!x.deep&&!x.inNeb&&!x.unknown&&x.planets.some(q=>q.minerals.includes("Endurium")||q.ruins)).sort(()=>Math.random()-.5)[0];
       if(!t)return null;t.rumor=true;addRumor(`${who}, a Krillian: there's Endurium or old ruins worth seeing at ${t.name} (${fmt(t.x)}, ${fmt(-t.y)}).`);return `Go look at ${t.name}. Endurium, or old ruins, or both`})();
@@ -5544,24 +5802,54 @@ const extCost=c=>Math.round(c*priceMult()/10)*10;
 const PAINTS={std:{name:"Survey grey",cost:0},midnight:{name:"Midnight blue",cost:600,base:"#4f5d82",s1:"#ffb347",s2:"#ffd36b"},
   crimson:{name:"Crimson",cost:600,base:"#9a5252",s1:"#f2ead8",s2:"#1a1a1a"},forest:{name:"Forest green",cost:600,base:"#5f7d66",s1:"#ffd36b",s2:"#2a3a2e"},
   desert:{name:"Desert sand",cost:600,base:"#b39a72",s1:"#6b3a1f",s2:"#f2ead8"},pearl:{name:"Pearl white",cost:900,base:"#d3d8e2",s1:"#3d6fa8",s2:"#ff6b6b"},
+  command:{name:"Command",cost:0,hidden:true,base:"#6e2430",s1:"#e0b84a",s2:"#e0b84a",gold:true,under:"#14161c"},
   noir:{name:"Black and gold",cost:1500,base:"#3a3d47",s1:"#e0b84a",s2:"#e0b84a",gold:true}};
 const BIGNAME_COST=300;
+// ---- a tribute: the Captain's Flagship, earned by joining a bartender's toast
+const TRIBUTE_TEXT="In memory of Sir Patrick Stewart, 1940–2026. Thank you for showing us what a captain could be.";
+const tributeOwned=()=>!!(G&&G.ship&&ext().tribute);
+function joinToast(){const L=port.lounge,e=ext(),sh=ship();if(!L||!L.toast||L.toastDone)return;L.toastDone=true;
+  const bar=L.pats.find(p=>p.kind==="bartender"),who=bar?bar.name:"The bartender";
+  if(!e.tribute){e.tribute=true;e.owned=e.owned||{};e.owned["hull:flagship"]=true;e.owned["glow:starlight"]=true;e.owned["paint:command"]=true;
+    loungeSay(`${who}: “He had a voice that made you sit up straight, and a way of making everyone on the bridge feel they mattered. Here.” They slide a datachip across the bar. “Plans for a ship worthy of a captain like that. The yard will know what to do with them.”`);
+    logMsg("You joined a toast to the finest captain who ever lived. The shipyard can now fit the Captain's Flagship: its hull, Command paint and Starlight engines, free.");toast("The Captain's Flagship is yours");gainXP("cha",5)}
+  else loungeSay(`${who}: “To the captain.” The whole room raises a glass with you.`);
+  sh.crew.forEach(c=>{if(c.health>0)c.health=Math.min(c.maxhp,c.health+5)});renderRoom();changed()}
+// ship skins: hull designs and engine glow colours. Looks only, no effect on how the ship performs.
+const HULLS={std:{name:"Survey frigate",cost:0},racer:{name:"Racer",cost:5550},hauler:{name:"Hauler",cost:4450},wedge:{name:"Wedge",cost:6650},corsair:{name:"Corsair",cost:7800},
+  explorer:{name:"Explorer",cost:6650},flagship:{name:"Flagship",cost:0,hidden:true},smuggler:{name:"Smuggler",cost:3350},interceptor:{name:"Interceptor",cost:7800},raptor:{name:"Raptor",cost:8900},dreadnought:{name:"Dreadnought",cost:10000}};
+function sheen2(c,x,y,w,h){const g=c.createLinearGradient(0,y,0,y+h);g.addColorStop(0,"rgba(255,255,255,.22)");g.addColorStop(1,"rgba(255,255,255,0)");c.fillStyle=g;c.fillRect(x,y,w,h)}
+const GLOWS={std:{name:"Standard blue",cost:0},gold:{name:"Gold",cost:1800,rgb:[255,190,90]},green:{name:"Green",cost:1800,rgb:[110,255,150]},
+  red:{name:"Red",cost:1800,rgb:[255,110,90]},teal:{name:"Teal",cost:1800,rgb:[90,240,220]},white:{name:"White-hot",cost:2650,rgb:[235,240,255]},starlight:{name:"Starlight",cost:0,hidden:true,rgb:[255,236,200]}};
 function extrasHtml(){const e=ext(),sh=ship();
   const q=e.quarters,m=e.medbay,qn=QUARTERS[q],mn=MEDBAY[m];
-  const paints=Object.entries(PAINTS).map(([k,p])=>`<button class="sm${e.paint===k?" on":""}" data-paint="${k}" ${e.paint===k||sh.credits<extCost(p.cost)?"disabled":""} title="${esc(p.name)}"><i style="display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px;background:${p.base||"#9aa4b8"};border:1px solid ${p.s1||"#5ce1e6"}"></i>${esc(p.name)}${e.paint===k?" ✓":p.cost?` · ${extCost(p.cost)}`:""}</button>`).join("");
+  const paints=Object.entries(PAINTS).filter(([k,p])=>!p.hidden||(e.owned||{})["paint:"+k]).map(([k,p])=>`<button class="sm${e.paint===k?" on":""}" data-paint="${k}" ${e.paint===k||sh.credits<extCost(p.cost)?"disabled":""} title="${esc(p.name)}"><i style="display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px;background:${p.base||"#9aa4b8"};border:1px solid ${p.s1||"#5ce1e6"}"></i>${esc(p.name)}${e.paint===k?" ✓":p.cost?` · ${extCost(p.cost)}`:""}</button>`).join("");
   return `<h2 style="margin-top:6px">Crew comforts</h2><div class="shop">
     <div class="item"><div>Crew quarters <span class="pips">${"■".repeat(q)}${"□".repeat(3-q)}</span><div class="d">${q?`Now: ${QUARTERS[q-1].d}. Crew heal ${q*2} HP on every jump and learn ${q*5}% faster.`:"Now: hammocks in the cargo bay."}${qn?`<br>Next: ${qn.d}`:""}</div></div>
       <button data-ext="quarters" ${!qn||sh.credits<extCost(qn.cost)?"disabled":""}>${qn?extCost(qn.cost).toLocaleString()+" cr":"Maxed"}</button></div>
     <div class="item"><div>Med bay <span class="pips">${"■".repeat(m)}${"□".repeat(2-m)}</span><div class="d">${m?`Now: ${MEDBAY[m-1].d}. Your doctor heals ${m*50}% more, and ${m*25}% of fatal injuries are pulled back from the brink.`:"Now: a first-aid locker."}${mn?`<br>Next: ${mn.d}`:""}</div></div>
       <button data-ext="medbay" ${!mn||sh.credits<extCost(mn.cost)?"disabled":""}>${mn?extCost(mn.cost).toLocaleString()+" cr":"Maxed"}</button></div></div>
+    ${e.hull==="flagship"?`<div class="member" style="border-color:#e0b84a66;background:#1a1018;margin-top:8px"><p style="margin:0;color:#f0d890;font-style:italic">${TRIBUTE_TEXT}</p></div>`:""}
+    <h2 style="margin-top:6px">Hull design</h2><p class="hint">Looks only. Your ship flies and fights exactly the same. Designs you've bought are yours to switch back to for free.</p><div class="row" style="gap:4px;flex-wrap:wrap">${skinBtns("hull",HULLS)}</div>
+    <h2 style="margin-top:6px">Engine glow</h2><div class="row" style="gap:4px;flex-wrap:wrap">${skinBtns("glow",GLOWS)}</div>
     <h2 style="margin-top:6px">Paint and name</h2><div class="row" style="gap:4px;flex-wrap:wrap">${paints}</div>
     <div class="shop" style="margin-top:4px"><div class="item"><div>Hull lettering<div class="d">${e.bigName?`“${esc(sh.name)}” is painted on the hull. It's repainted free if you rename the ship.`:"Paint your ship's name in big letters along the hull."}</div></div>
       <button data-bigname="1" ${e.bigName||sh.credits<extCost(BIGNAME_COST)?"disabled":""}>${e.bigName?"Done":extCost(BIGNAME_COST)+" cr"}</button></div></div>`}
+function skinBtns(kind,list){const e=ext(),sh=ship(),cur=e[kind]||"std",own=e.owned=e.owned||{};
+  return Object.entries(list).filter(([k,p])=>!p.hidden||own[kind+":"+k]).map(([k,p])=>{const has=k==="std"||own[kind+":"+k],c=extCost(p.cost);
+    return `<button class="sm${cur===k?" on":""}" data-skin="${kind}:${k}" ${cur===k||(!has&&sh.credits<c)?"disabled":""}>${esc(p.name)}${cur===k?" ✓":has?" · owned":` · ${c.toLocaleString()}`}</button>`}).join("")}
 function wireExtras(root){const sh=ship(),e=ext();
+  root.querySelectorAll("[data-skin]").forEach(b=>{const [kind,k]=b.dataset.skin.split(":"),list=kind==="hull"?HULLS:GLOWS,p=list[k],art=root.querySelector("canvas.shipArt");
+    b.onclick=()=>{e.owned=e.owned||{};const has=k==="std"||e.owned[kind+":"+k],c=extCost(p.cost);if((e[kind]||"std")===k)return;
+      if(!has){if(sh.credits<c)return;sh.credits-=c;e.owned[kind+":"+k]=true;logMsg(`The yard fitted your ship with ${kind==="hull"?`the ${p.name} hull design`:`a ${p.name.toLowerCase()} engine glow`} for ${c.toLocaleString()} credits.`)}
+      else logMsg(`Switched to ${kind==="hull"?`the ${p.name} hull design`:`the ${p.name.toLowerCase()} engine glow`}.`);
+      e[kind]=k;toast(p.name);changed()};
+    if(art){const show=()=>{drawShipArt(art,sh.up,{name:sh.name,[kind]:k});const n=root.querySelector(".shipArtNote");if(n)n.textContent=`Preview: ${p.name}`},hide=()=>{drawShipArt(art,sh.up,{name:sh.name});const n=root.querySelector(".shipArtNote");if(n)n.textContent=n.dataset.note};
+      b.addEventListener("mouseenter",show);b.addEventListener("mouseleave",hide);b.addEventListener("touchstart",show,{passive:true});b.addEventListener("touchend",hide)}});
   root.querySelectorAll("[data-ext]").forEach(b=>b.onclick=()=>{const k=b.dataset.ext,list=k==="quarters"?QUARTERS:MEDBAY,n=list[e[k]];if(!n)return;const c=extCost(n.cost);if(sh.credits<c)return;
     sh.credits-=c;e[k]++;logMsg(`Installed ${k==="quarters"?"crew quarters":"a med bay"} level ${e[k]}: ${n.d.toLowerCase()}.`);toast(k==="quarters"?"Crew quarters upgraded":"Med bay upgraded");changed()});
   root.querySelectorAll("[data-paint]").forEach(b=>{const k=b.dataset.paint,p=PAINTS[k],art=root.querySelector("canvas.shipArt");
-    b.onclick=()=>{const c=extCost(p.cost);if(sh.credits<c||e.paint===k)return;sh.credits-=c;e.paint=k;logMsg(`The yard repainted your ship ${p.name.toLowerCase()}${c?` for ${c} credits`:""}.`);toast("Repainted");changed()};
+    b.onclick=()=>{const c=(p.hidden&&(e.owned||{})["paint:"+k])?0:extCost(p.cost);if(sh.credits<c||e.paint===k)return;sh.credits-=c;e.paint=k;logMsg(`The yard repainted your ship ${p.name.toLowerCase()}${c?` for ${c} credits`:""}.`);toast("Repainted");changed()};
     if(art){const show=()=>{drawShipArt(art,sh.up,{name:sh.name,paint:k});const n=root.querySelector(".shipArtNote");if(n)n.textContent=`Preview: ${p.name}`},hide=()=>{drawShipArt(art,sh.up,{name:sh.name});const n=root.querySelector(".shipArtNote");if(n)n.textContent=n.dataset.note};
       b.addEventListener("mouseenter",show);b.addEventListener("mouseleave",hide);b.addEventListener("touchstart",show,{passive:true});b.addEventListener("touchend",hide)}});
   root.querySelectorAll("[data-bigname]").forEach(b=>b.onclick=()=>{const c=extCost(BIGNAME_COST);if(sh.credits<c||e.bigName)return;sh.credits-=c;e.bigName=true;logMsg(`The yard painted “${sh.name}” along your hull.`);toast("Name painted on the hull");changed()})}
@@ -5616,7 +5904,7 @@ function buyInfo(where,k){const sh=ship(),me=here(),bought=where.bought||(where.
 const INS_WEEK=25;
 const insured=()=>!!(G&&G.ship&&ext().ins);
 function insuranceHtml(){const e=ext(),sh=ship();
-  return `<div class="item"><div>Insurance${e.ins?' <span class="tag home">Covered</span>':""}<div class="d">${INS_WEEK} cr a week, taken automatically. Halves the cost of a tow or a fuel tanker, and pays back half of any rover cargo you have to abandon.${e.ins?` Next payment day ${e.ins.next}.`:" Lapses if you can't pay."}</div></div>
+  return `<div class="item"><div>Insurance${e.ins?' <span class="tag home">Covered</span>':""}<div class="d">${INS_WEEK} cr a week, taken automatically. Halves the cost of a tow or a fuel tanker, and pays back half of any rover cargo you have to abandon.${e.ins?` Next payment stardate ${stardate(e.ins.next)}.`:" Lapses if you can't pay."}</div></div>
     <button class="sm" id="bIns" ${!e.ins&&sh.credits<INS_WEEK?"disabled":""}>${e.ins?"Cancel":"Sign up · "+INS_WEEK+" cr"}</button></div>`}
 function toggleInsurance(){const e=ext(),sh=ship();
   if(e.ins){e.ins=null;logMsg("You cancelled your insurance.");toast("Insurance cancelled")}
