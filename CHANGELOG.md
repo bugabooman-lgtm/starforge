@@ -6,6 +6,10 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.84
+- **A slot machine** in alien cantinas, with a jackpot that grows with every pull. Some say there's a reason nobody plays it.
+- New tall tales in the lounges.
+
 ## 0.83
 - **The story continues.** Something new waits for those who make the Lattice sing.
 - A new tall tale in the lounges.
