@@ -6,6 +6,11 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.83
+- **The story continues.** Something new waits for those who make the Lattice sing.
+- A new tall tale in the lounges.
+- Fixed: the Codex could show keys aboard after they had been used.
+
 ## 0.82
 - **Space suits reworked.** The free suit now holds much less air, and there are three better suits to buy at the shipyard. Suits you've already bought move up a level.
 - Rover batteries rebalanced.
