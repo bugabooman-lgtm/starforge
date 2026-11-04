@@ -6,6 +6,11 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.82
+- **Space suits reworked.** The free suit now holds much less air, and there are three better suits to buy at the shipyard. Suits you've already bought move up a level.
+- Rover batteries rebalanced.
+- A new tall tale in the lounges.
+
 ## 0.81
 - **Rover upgrades rebalanced.** Each level is a smaller step, so a fully upgraded rover is strong but no longer unstoppable.
 - Your rover's upgrades now show on the Ship tab.

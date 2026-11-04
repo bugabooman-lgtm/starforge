@@ -1,5 +1,5 @@
 {
- "version": "0.81",
- "notes": "Rover upgrades rebalanced, and your rover now shows on the Ship tab.",
+ "version": "0.82",
+ "notes": "Space suits reworked: the free suit holds much less air, and there are three better suits to buy.",
  "file": "Starforge.html"
 }
