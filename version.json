@@ -1,5 +1,5 @@
 {
- "version": "0.79.1",
- "notes": "New tall tales in lounges and cantinas; explored ruins no longer listed; a small fix.",
+ "version": "0.80",
+ "notes": "Stranded on foot: if the rover dies far from the lander, your captain walks back before the air runs out.",
  "file": "Starforge.html"
 }
