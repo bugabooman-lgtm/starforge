@@ -1,5 +1,5 @@
 {
- "version": "0.80",
- "notes": "Stranded on foot: if the rover dies far from the lander, your captain walks back before the air runs out.",
+ "version": "0.81",
+ "notes": "Rover upgrades rebalanced, and your rover now shows on the Ship tab.",
  "file": "Starforge.html"
 }

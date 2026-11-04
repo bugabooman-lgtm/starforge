@@ -6,6 +6,11 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.81
+- **Rover upgrades rebalanced.** Each level is a smaller step, so a fully upgraded rover is strong but no longer unstoppable.
+- Your rover's upgrades now show on the Ship tab.
+- A new tall tale in the lounges.
+
 ## 0.80
 - **Stranded on foot.** If your rover runs out of power or is wrecked far from the lander, your captain has to abandon it and walk back in a space suit before the air runs out.
 - A new tall tale in the lounges.
