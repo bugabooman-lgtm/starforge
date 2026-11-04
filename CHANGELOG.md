@@ -6,6 +6,10 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.85
+- Better odds on the cantina slot machines.
+- New lore around the slot machines.
+
 ## 0.84
 - **A slot machine** in alien cantinas, with a jackpot that grows with every pull. Some say there's a reason nobody plays it.
 - New tall tales in the lounges.
