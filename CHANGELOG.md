@@ -6,6 +6,11 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.87
+- **Every crew station matters.** An empty station is no longer covered. Without the right officer you can't scan, hail, fire or heal, and the ship can't jump without a captain, navigator and engineer.
+- The Captain and First Officer can each take a second station, and you can reassign your crew from the Crew tab anywhere.
+- A new tall tale in the lounges.
+
 ## 0.86
 - **Disembark anywhere.** Your captain can step out of the rover on any planet. The game tells you roughly how many seconds of air you have, and the suit refills in the rover and inside the lander's circle.
 - **Lift-off needs everyone home.** The rover has to be back inside the lander's circle before you can lift off.

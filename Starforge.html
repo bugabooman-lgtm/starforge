@@ -679,7 +679,7 @@ function newShip(){
   const home=G.systems.find(s=>s.home)||G.systems[0];
   const r=rng(G.seed+99);
   const crew=[makeCaptain(r),newCrewMember(r,"Human"),newCrewMember(r,"Kesh"),newCrewMember(r,"Vorrn")];
-  crew[1].role="sci";crew[2].role="nav";crew[3].role="eng";
+  crew[1].role="sci";crew[2].role="nav";crew[3].role="eng";crew[0].role2="com";
   return {name:"ISS Endeavor",at:home.id,credits:2500,data:0,fuel:tankCap(1),hull:hullMax(1),
     up:{engine:1,tank:1,cargo:1,armor:1,shields:0,sensors:1,weapons:0,torpedoes:0},torps:0,cargo:{},relics:[],crew,log:[],hires:null,hiresAt:null,visits:0,day:0,reports:[]};
 }
@@ -713,17 +713,20 @@ function fixSkills(){
 const ship=()=>G.ship;
 const here=()=>G.systems.find(s=>s.id===ship().at);
 const docked=()=>!!(here()&&here().starbase&&!anim&&ship().near==null&&!(typeof sysv!=="undefined"&&sysv.fly));
-function crewIn(role){const cr=ship().crew;return cr.find(c=>c.role===role)||(role!=="xo"&&role!=="cap"?cr.find(c=>c.role==="xo"&&c.role2===role):undefined)}
-const holdsSkill=(c,k)=>stationSkill(c.role)===k||(c.role==="xo"&&c.role2===k);
+const twoPosts=c=>c&&(c.role==="xo"||c.role==="cap"); // the First Officer and the Captain may each hold one extra station
+function crewIn(role){const cr=ship().crew;return cr.find(c=>c.role===role)||(role!=="xo"&&role!=="cap"?cr.find(c=>twoPosts(c)&&c.role2===role):undefined)}
+const holdsSkill=(c,k)=>stationSkill(c.role)===k||(twoPosts(c)&&c.role2===k);
 // put someone in a station, keeping every station to one person
 function assignStation(m,k){
   const sh=ship();
   if(m.role==="xo"&&k!=="xo")m.role2=null;               // leaving First Officer drops the second post
-  if(k){const o=sh.crew.find(c=>c!==m&&(c.role===k||(c.role==="xo"&&c.role2===k)));
+  if(k){const o=sh.crew.find(c=>c!==m&&(c.role===k||(twoPosts(c)&&c.role2===k)));
     if(o){if(o.role===k)o.role=m.role==="xo"?null:m.role;else o.role2=null}}
-  sh.crew.forEach(c=>{if(c!==m&&c.role==="xo"&&c.role2===k)c.role2=null});
+  sh.crew.forEach(c=>{if(c!==m&&twoPosts(c)&&c.role2===k)c.role2=null});
   m.role=k||null;
 }
+function setSecondPost(m,k){const sh=ship();if(!twoPosts(m))return;
+  if(k){sh.crew.forEach(c=>{if(c!==m&&c.role===k)c.role=null;if(c!==m&&twoPosts(c)&&c.role2===k)c.role2=null})}m.role2=k||null}
 // specialties: the Captain and First Officer each boost one position
 const SPEC_SKILLS=["sci","nav","eng","com","med","wpn"];
 function specBonus(k){
@@ -736,14 +739,12 @@ const pct=x=>Math.round(x*100);
 // who does the work for a skill: the officer at that station, or the First Officer filling in
 function worker(k){
   if(k==="cha")return crewIn("cap");
-  const o=crewIn(k);if(o)return o;
-  const xo=crewIn("xo");return xo?xo:null;
+  return crewIn(k)||null;
 }
 function eff(k){ // effective skill, after injuries
   if(k==="cha"){const cp=crewIn("cap"),xo=crewIn("xo");return (cp?cp.skills.cha*hpPct(cp):0)+(xo?xo.skills.cha*hpPct(xo)*.25:0)}
   const boost=1+specBonus(k);
-  const o=crewIn(k);if(o)return o.skills[k]*Math.max(.25,hpPct(o))*boost;
-  const xo=crewIn("xo");return xo?xo.skills[k]*Math.max(.25,hpPct(xo))*.6*boost:0;
+  const o=crewIn(k);return o?o.skills[k]*Math.max(.25,hpPct(o))*boost:0;
 }
 const staffed=k=>!!worker(k);
 function priceMult(){return 1-eff("com")/400} // up to 25% off
@@ -791,8 +792,12 @@ const roleName=k=>ROLES.find(r=>r.k===k)?.name||stationName(k);
 // ---------- travel ----------
 let anim=null;
 function jumpCost(s){const h=here();const d=Math.hypot(s.x-h.x,s.y-h.y);return {d,fuel:Math.ceil(d*fuelPerLy()*10)/10}}
+const STATION_NEED={sci:"No science officer on duty. Nobody aboard can run the scanners.",com:"No communications officer on duty. Nobody can work the comms.",wpn:"No weapons officer on duty. Nobody is at the guns."};
+function needStation(k,inEnc){if(staffed(k))return true;const m=STATION_NEED[k];if(inEnc&&enc){encLine(`<span style="color:var(--amber)">${m}</span>`);renderEnc()}else toast(m);return false}
+function jumpCrewMissing(){const m=[];if(!crewIn("cap"))m.push("a captain");if(!staffed("nav"))m.push("a navigator");if(!staffed("eng"))m.push("an engineer");return m}
 function jumpTo(s,force){
   const sh=ship();let {d,fuel}=jumpCost(s);
+  {const miss=jumpCrewMissing();if(miss.length){toast(`You can't jump without ${miss.join(" and ")} on duty. Assign them on the Crew tab.`);return}}
   if(!!here().unknown!==!!s.unknown){toast("The edge of the Lattice can only be crossed at the Gate.");return}
   if(fuel>sh.fuel&&!force){
     const reach=Math.floor(sh.fuel/fuelPerLy());
@@ -1201,7 +1206,7 @@ function renderEnc(){
   on("eFire",()=>playerShoot("laser"));on("eScan",scanShip);on("eNextT",cycleTarget);on("eScav",scavenge);on("eArm",toggleArm);on("eBoard",boardShip);on("eSpare",spareShip);on("eFinish",finishShip);on("ePayoff",payKrillians);on("eShield",toggleShields);on("eSkV",()=>joinSkirmish("victim"));on("eSkA",()=>joinSkirmish("attacker"));on("eSkN",stayOut);on("eTorp",()=>playerShoot("torp"));on("eIon",()=>playerShoot("ion"));on("eIonArm",toggleIon);
   on("eAttack",()=>{enc.reinfActive=true;const was=stanceOf(a.att);changeAtt(a,was==="Hostile"?-5:-40);enc.fighting=true;enc.noTrade=true;enc.trading=false;if(enc.video){enc.video=false;encLine("The video link cuts out.")}encLine(`You open fire on the ${esc(d.name)}!${ldOf().shieldsUp?"":" Their shields are down. Your first shot hits clean."}`);playerShoot(sh.up.weapons?"laser":"torp");renderEnc()});
 }
-function hail(){
+function hail(){if(!needStation("com",true))return;
   if(enc.a.key==="krillian"&&enc.fighting){enc.hailed=true;enc.payoff=enc.payoff||krillPayoff();encLine(`“Ah, a negotiator! ${enc.payoff} credits and we remember an urgent appointment elsewhere.”`);renderEnc();return}
   if(enc.a.key==="quiet"){enc.hailed=true;encLine("You hail on every frequency. There is no answer, only a silence that seems to listen.");if(enc.fighting)enemyFires();renderEnc();return}
   const a=enc.a,d=def(a.key),st=stanceOf(a.att),com=eff("com")+eff("cha")*.6+(enc.video?15:0);enc.hailed=true;gainXP("com",6);gainXP("cha",4);
@@ -1429,6 +1434,7 @@ function scanLevel(){return Math.max(0,eff("sci")+ship().up.sensors*10-(inUnknow
 function scan(){
   const s=here(),sh=ship();
   if(s.scanned){openSystem();return}
+  if(!needStation("sci"))return;
   s.scanned=1;
   const value=Math.round((40+s.planets.length*15)*(1+sh.up.sensors*.2)*(1+eff("sci")/100));
   sh.data+=value;gainXP("sci",6+s.planets.length);
@@ -1557,8 +1563,9 @@ function renderCaptain(){
 }
 function crewCard(c,ctx){
   const sp=SPECIES[c.species];
-  const roleSel=ctx!=="roster"?"":c.captain?`<span class="tag home">Captain</span>`:`<select data-role="${c.id}" aria-label="Station for ${esc(c.name)}"><option value="">Off duty</option>${STATIONS.filter(st=>st.k!=="cap").map(st=>`<option value="${st.k}" ${c.role===st.k?"selected":""}>${st.name}</option>`).join("")}</select>`;
-  return `<div class="member"><div class="top"><div><span class="nm">${esc(c.name)}</span> <span class="sp">${c.species}${c.role==="xo"&&c.role2?` · also ${stationName(c.role2)}`:""}${c.spec?` · specialty ${roleName(c.spec)}`:""}</span></div>${roleSel}</div>
+  const second=ctx==="roster"&&twoPosts(c)?`<select data-role2="${c.id}" aria-label="Second station for ${esc(c.name)}" title="A second station"><option value="">No second station</option>${SPEC_SKILLS.map(k=>{const o=crewIn(k);return `<option value="${k}" ${c.role2===k?"selected":""}>Also ${stationName(k)}${o&&o!==c?` (now ${esc(o.name)})`:""}</option>`}).join("")}</select>`:"";
+  const roleSel=ctx!=="roster"?"":c.captain?`<span class="row" style="gap:4px"><span class="tag home">Captain</span>${second}</span>`:`<span class="row" style="gap:4px"><select data-role="${c.id}" aria-label="Station for ${esc(c.name)}"><option value="">Off duty</option>${STATIONS.filter(st=>st.k!=="cap").map(st=>`<option value="${st.k}" ${c.role===st.k?"selected":""}>${st.name}</option>`).join("")}</select>${second}</span>`;
+  return `<div class="member"><div class="top"><div><span class="nm">${esc(c.name)}</span> <span class="sp">${c.species}${twoPosts(c)&&c.role2?` · also ${stationName(c.role2)}`:""}${c.spec?` · specialty ${roleName(c.spec)}`:""}</span></div>${roleSel}</div>
  <div class="row" style="gap:8px;align-items:center;margin:2px 0 4px"><div class="bar" style="flex:1;height:8px"><i style="width:${Math.round(hpPct(c)*100)}%;background:${hpColor(c)}"></i></div><span class="hint" style="color:${hpColor(c)};white-space:nowrap">HP ${Math.max(0,c.health)} / ${c.maxhp}</span>${ctx==="roster"&&c.health<c.maxhp&&staffed("med")&&!enc?`<button class="sm" data-treat="${c.id}" title="Your doctor treats them. Takes a day.">Treat</button>`:""}</div>
  <div class="skills">${ROLES.map(r=>`<div class="sk ${holdsSkill(c,r.k)?"role":""}" title="${r.name}: ${r.does}">${r.short}<b>${c.skills[r.k]}</b><small>/${sp.cap[r.k]}</small></div>`).join("")}</div>
     ${ctx==="roster"&&docked()&&!c.captain?`<div class="row"><button class="sm danger" data-fire="${c.id}">Dismiss</button></div>`:""}</div>`;
@@ -1576,6 +1583,8 @@ function renderCrew(el,withTitle){
   el.querySelectorAll("[data-role]").forEach(sel=>sel.onchange=()=>{
     const c=sh.crew.find(x=>x.id==sel.dataset.role);const v=sel.value||null;
     assignStation(c,v);changed()});
+  el.querySelectorAll("[data-role2]").forEach(sel=>sel.onchange=()=>{const c=sh.crew.find(x=>x.id==sel.dataset.role2);setSecondPost(c,sel.value||null);if(c.role2)logMsg(`${c.captain?"Captain ":""}${c.name} is now also ${stationName(c.role2)}.`);changed()});
+  {const miss=jumpCrewMissing(),gaps=["sci","com","med","wpn"].filter(k=>!staffed(k));if(miss.length||gaps.length)el.insertAdjacentHTML("afterbegin",`<p class="hint" style="color:var(--amber)">${miss.length?`<b>The ship can't jump</b> without ${miss.join(" and ")} on duty. `:""}${gaps.length?`Empty: ${gaps.map(stationName).join(", ")}. `:""}The Captain and the First Officer can each take one extra station.</p>`)}
   el.querySelectorAll("[data-treat]").forEach(b=>b.onclick=()=>treatCrew(sh.crew.find(x=>x.id==b.dataset.treat)));
   {const hurt=sh.crew.filter(c=>c.health<c.maxhp);if(hurt.length)el.insertAdjacentHTML("afterbegin",`<p class="hint" style="color:${staffed("med")?"var(--text)":"var(--amber)"}">${staffed("med")?`Your doctor heals the injured a little on every jump, or can treat one person now (takes a day).`:`<b>No doctor on duty.</b> Injured crew won't heal in space, and the critically injured will get worse.`}</p>`)}
   el.querySelectorAll("[data-fire]").forEach(b=>b.onclick=()=>{
@@ -1669,7 +1678,7 @@ function renderBase(bp,inRoom){
   bp.querySelectorAll("[data-hpick]").forEach(b=>b.onclick=()=>{hireSel=+b.dataset.hpick;changed()});
   bp.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{persPos=b.dataset.pos;changed()});
   const specSel=bp.querySelector("#specSel");if(specSel)specSel.onchange=()=>{const m=crewIn(persPos);m.spec=specSel.value||null;logMsg(m.spec?`${m.name} now specializes in ${roleName(m.spec)}.`:`${m.name} dropped their specialty.`);changed()};
-  const r2=bp.querySelector("#role2Sel");if(r2)r2.onchange=()=>{const m=sh.crew.find(c=>c.role==="xo");m.role2=r2.value||null;if(m.role2)logMsg(`${m.name} is now also ${stationName(m.role2)}.`);changed()};
+  const r2=bp.querySelector("#role2Sel");if(r2)r2.onchange=()=>{const m=crewIn(persPos);if(!twoPosts(m))return;setSecondPost(m,r2.value||null);if(m.role2)logMsg(`${m.name} is now also ${stationName(m.role2)}.`);changed()};
   bp.querySelectorAll("[data-renamecap]").forEach(b=>b.onclick=()=>{const cp=sh.crew.find(m=>m.captain);openModal("Your name",cp.name,v=>{v=v.trim().slice(0,24);if(v)cp.name=v;$("modal").hidden=true;changed()});$("mLoad").textContent="Rename";$("mText").readOnly=false;$("mText").style.height="44px";$("mText").select()});
   const ap=bp.querySelector("#assignPos");if(ap)ap.onchange=()=>{const m=sh.crew.find(x=>x.id==ap.value);if(!m)return;assignStation(m,persPos);logMsg(`${m.name} is now ${stationName(persPos)}.`);changed()};
   bp.querySelectorAll("[data-trainhp]").forEach(b=>b.onclick=()=>{const c=sh.crew.find(x=>x.id==b.dataset.trainhp);if(!c)return;const cost=trainHpCost(c);if(sh.credits<cost||c.maxhp>=hpCap(c))return;
@@ -1701,7 +1710,7 @@ function commandControls(m){
   return `<div class="shop">
     <div class="item"><div>Specialty<div class="d">${m.spec?`Boosts your ${stationName(m.spec)} by +${pct(sb)}% (grows with ${esc(m.name)}'s own ${roleName(m.spec)} skill).`:`Pick a field to boost that position on the ship by ${isXO?"5":"8"}% plus a share of ${esc(m.name)}'s own skill in it.`}</div></div>
       <select id="specSel" aria-label="Specialty"><option value="">None</option>${SPEC_SKILLS.map(k=>`<option value="${k}" ${m.spec===k?"selected":""}>${roleName(k)} (${m.skills[k]})</option>`).join("")}</select></div>
-    ${isXO?`<div class="item"><div>Second position<div class="d">${m.role2?`Also serving as ${stationName(m.role2)} at full skill, while still covering empty stations at 60%.`:"The First Officer can also hold one regular station at full skill."}</div></div>
+    ${twoPosts(m)?`<div class="item"><div>Second position<div class="d">${m.role2?`Also serving as ${stationName(m.role2)} at full skill.`:`The ${isXO?"First Officer":"Captain"} can also hold one regular station at full skill. Nobody covers an empty station.`}</div></div>
       <select id="role2Sel" aria-label="Second position"><option value="">None</option>${free.map(k=>`<option value="${k}" ${m.role2===k?"selected":""}>${stationName(k)} (${m.skills[k]})</option>`).join("")}</select></div>`:""}
   </div>`;
 }
@@ -1732,7 +1741,7 @@ function personnelHtml(){
     }else if(st){
       const movable=sh.crew.filter(m=>!m.captain);
       detail=`<div class="member"><span class="nm">${st.name}: vacant</span>
-        <p class="hint">${persPos==="xo"?"A First Officer covers any empty station at 60% of their own skill there.":crewIn("xo")?`Your First Officer, ${esc(crewIn("xo").name)}, is covering this station at 60% of their ${roleName(st.skill)} skill.`:"Nobody is doing this job. Assign someone or hire a specialist."}</p>
+        <p class="hint">${persPos==="xo"?"A First Officer can take one extra station at full skill. Nobody covers an empty station.":"Nobody is doing this job. Assign someone, give it to the Captain or First Officer as a second station, or hire a specialist."}</p>
         ${movable.length?`<div class="row"><label>Assign<select id="assignPos" aria-label="Assign someone as ${st.name}"><option value="">Choose crew…</option>${movable.map(m=>`<option value="${m.id}">${esc(m.name)} · ${m.species} · ${roleName(st.skill)} ${m.skills[st.skill]}${m.role?" (now "+stationName(m.role)+")":""}</option>`).join("")}</select></label></div>`:""}
         <div class="row"><button class="sm" data-ptab="hire">See who's for hire</button></div></div>`;
     }
@@ -2678,10 +2687,10 @@ function renderCargo(){
 }
 function renderEng(){
   const sh=ship(),el=$("engPanel");if(!el)return;
-  const eng=staffed("eng"),who=crewIn("eng")||crewIn("xo");
+  const eng=staffed("eng"),who=crewIn("eng");
   const m=groupAmt("metal"),f=groupAmt("fuel"),dmg=hullMax(sh.up.armor)-sh.hull,per=hullPerMetal();
   el.innerHTML=`<h2>Engineering</h2>
-    <p class="hint">${eng?`${crewIn("eng")?"Engineer":"First Officer (covering)"} <b style="color:var(--text);font-weight:600">${esc(who.name)}</b> · skill ${Math.round(eff("eng"))}. Works anywhere in space.`:`<b style="color:var(--danger)">No engineer on duty.</b> Assign one in Personnel.`}</p>
+    <p class="hint">${eng?`${crewIn("eng")&&crewIn("eng").role==="eng"?"Engineer":"Also on engineering:"} <b style="color:var(--text);font-weight:600">${esc(who.name)}</b> · skill ${Math.round(eff("eng"))}. Works anywhere in space.`:`<b style="color:var(--danger)">No engineer on duty.</b> Assign one in Personnel.`}</p>
     <div class="stat">Hull ${bar("hull",sh.hull,hullMax(sh.up.armor),`${sh.hull} / ${hullMax(sh.up.armor)}`)}</div>
     <div class="stat">Fuel ${bar("fuel",sh.fuel,tankCap(sh.up.tank),`${Math.round(sh.fuel*10)/10} / ${tankCap(sh.up.tank)}`)}</div>
     <div class="shop">
@@ -2693,13 +2702,13 @@ function renderEng(){
 }
 function renderWeapons(){
   const sh=ship(),el=$("weaponsPanel");if(!el)return;
-  const g=crewIn("wpn")||crewIn("xo"),eng=staffed("eng");
+  const g=crewIn("wpn"),eng=staffed("eng");
   const m=groupAmt("metal"),r=groupAmt("rare"),tc=torpCap(sh.up.torpedoes);
   const pips=l=>`<span class="pips">${pipStr(l)}</span>`;
   el.innerHTML=`<h2>Weapons &amp; defense</h2>
     <div class="row" style="align-items:center;gap:8px;margin-bottom:8px">${postureLine()}</div>
     <div class="row" style="gap:6px;margin-bottom:10px"><button class="sm" id="fArm" ${armed()&&!enc&&!docked()?"":"disabled"}>${sh.armed?"Weapons to safe":"Arm weapons"}</button><button class="sm" id="fShield" ${sh.up.shields&&!enc&&!docked()?"":"disabled"}>${sh.shieldsUp?"Lower shields":"Raise shields"}</button><span class="hint">Keys: 1 shields · 2 weapons${ionReady()?" · 3 ion cannon":""}</span>${docked()?'<span class="hint">Not allowed while docked.</span>':""}</div>
-    <p class="hint">${g?`${crewIn("wpn")?"Weapons officer":"First Officer (covering)"} <b style="color:var(--text);font-weight:600">${esc(g.name)}</b> · skill ${Math.round(eff("wpn"))}`:`<b style="color:var(--danger)">No weapons officer.</b> Your shots will miss more often.`}</p>
+    <p class="hint">${g?`${crewIn("wpn")&&crewIn("wpn").role==="wpn"?"Weapons officer":"Also on weapons:"} <b style="color:var(--text);font-weight:600">${esc(g.name)}</b> · skill ${Math.round(eff("wpn"))}`:`<b style="color:var(--danger)">No weapons officer.</b> Nobody can fire the guns. Shields still work. Assign someone on the Crew tab.`}</p>
     <div class="shop">
       <div class="item"><div>Lasers ${pips(sh.up.weapons)}<div class="d">${UPG.weapons.d(sh.up.weapons)}</div></div><div></div></div>
       <div class="item"><div>Torpedo launcher ${pips(sh.up.torpedoes)}<div class="d">${UPG.torpedoes.d(sh.up.torpedoes)}</div></div><div></div></div>
@@ -3563,7 +3572,7 @@ function drawPlanetScreen(){
 function drawOrbitShip(c,x,y,a,sc){c.save();c.translate(x,y);c.rotate(a+Math.PI/2);c.scale(sc,sc);
   c.fillStyle="#cfd8e8";c.beginPath();c.moveTo(12,0);c.lineTo(-8,-5);c.lineTo(-5,0);c.lineTo(-8,5);c.closePath();c.fill();
   c.fillStyle="rgba(150,200,255,.9)";c.fillRect(-12,-1.5,4,3);c.restore()}
-function scanPlanet(s,i){revealOutpost(s,s.planets[i]);
+function scanPlanet(s,i){if(!needStation("sci"))return;revealOutpost(s,s.planets[i]);
   const sh=ship(),p=s.planets[i];if(known(s,p))return;
   p.scanned=true;
   let v=30+p.size*8+(p.life!=="None"?60:0)+(p.ruins?250:0)+(p.minerals.includes("Endurium")?120:0);
@@ -4006,7 +4015,8 @@ const TALL_TALES=[
  "My cousin swears the old ones left a library behind the stars, every book written by someone older than the last. Nobody's found it. Or nobody who could read it.",
  "Every cantina's got one of those old machines in the corner. Ask the regulars why nobody plays it. They'll tell you the jackpot's never been bigger.",
  "I knew a fella who won a million credits on one of those cantina machines. Haven't seen him in a while. I wonder what happened to him.",
- "Being a captain is a dangerous job in an unforgiving universe. Being a careless one just makes it somebody else's problem. Usually the first officer's."];
+ "Being a captain is a dangerous job in an unforgiving universe. Being a careless one just makes it somebody else's problem. Usually the first officer's.",
+ "Lost my navigator to a bar fight once. Spent three weeks parked at the edge of nowhere, arguing with the engineer about who could read a star chart. Neither of us could."];
 function tallTale(){const seen=(G.talesHeard=G.talesHeard||[]);let pool=TALL_TALES.map((t,i)=>i).filter(i=>!seen.includes(i));
   if(!pool.length){G.talesHeard=[];pool=TALL_TALES.map((t,i)=>i)}const i=pick(Math.random,pool);G.talesHeard.push(i);return TALL_TALES[i]}
 function talkTo(id){
@@ -4814,7 +4824,7 @@ function alienLoadout(str,st,fighting){
 const ldOf=()=>{if(!enc.ld)enc.ld=alienLoadout(enc.str,stanceOf(enc.a.att),enc.fighting);return enc.ld};
 // a fight means weapons hot and shields up
 function goHot(){const ld=ldOf();const was=!ld.armed||!ld.shieldsUp;ld.armed=true;ld.shieldsUp=true;return was}
-function scanShip(){
+function scanShip(){if(!needStation("sci",true))return;
   const t=T();if(t&&enc.me&&tdist(t,enc.me)>scanRange()){encLine("Out of sensor range. Move closer.");renderEnc();return}
   if(t&&t.key==="freighter"){t.scanned=scanLevel();encLine("You scan the freighter. Its crew doesn't mind.");renderEnc();return}
   const a=t?G.aliens.find(x=>x.key===t.key)||enc.a:enc.a;
@@ -4951,8 +4961,9 @@ function promoteCaptain(){const sh=ship();
   const xo=sh.crew.find(m=>m.role==="xo");
   const next=xo||sh.crew.slice().sort((a,b)=>b.skills.cha-a.skills.cha)[0];
   const how=xo?"As First Officer,":"With the most charisma aboard,";
-  next.captain=true;next.original=false;next.role="cap";next.role2=null;next.since=sh.day||0;
-  logMsg(`${how} ${next.name} the ${next.species} takes command of the ship.${xo?" The First Officer post is now empty.":""}`);toast(`${next.name} is now Captain`);
+  const kept=next.role==="xo"?next.role2:(SPEC_SKILLS.includes(next.role)?next.role:null);
+  next.captain=true;next.original=false;next.role="cap";next.role2=kept||null;next.since=sh.day||0;
+  logMsg(`${how} ${next.name} the ${next.species} takes command of the ship${kept?`, and stays on as ${stationName(kept)}`:""}.${xo?" The First Officer post is now empty.":""}${jumpCrewMissing().length?` The ship has no ${jumpCrewMissing().map(x=>x.replace(/^an? /,"")).join(" or ")} now. Reassign the crew before the next jump.`:""}`);toast(`${next.name} is now Captain`);
   return ` <b style="color:var(--amber)">${esc(next.name)} takes command.</b>`;
 }
 function hurtRandom(amt,cause){const sh=ship();if(!sh.crew.length)return "";return hurtCrew(pick(Math.random,sh.crew),amt,cause)}
@@ -4995,7 +5006,7 @@ function boom(s,big){fx({type:"boom",x:s.x,y:s.y,life:big?1.1:.6,r:big?60:26,col
 
 // ---- player actions
 function playerShoot(kind){
-  if(!enc||!enc.ships||!enc.fighting||enc.done)return;const me=enc.me,t=T(),sh=ship();
+  if(!enc||!enc.ships||!enc.fighting||enc.done)return;if(!needStation("wpn",true))return;const me=enc.me,t=T(),sh=ship();
   if(!live(t))return;if(t.team==="ally"||t.team==="victim"){encLine("That ship is on your side.");renderEnc();return}
   if(kind!=="ion"&&!hot()){encLine("Arm your weapons first (2).");renderEnc();return}
   const d=tdist(me,t);
@@ -5198,7 +5209,7 @@ function gateHtml(s){
     <div class="row"><button class="primary" data-gate="out" ${ship().fuel<5?"disabled":""}>Return through the Gate · 5 fuel</button></div></div>`;
   return "";
 }
-function useGate(dir){const sh=ship();if(sh.fuel<5||enc)return;
+function useGate(dir){const sh=ship();if(sh.fuel<5||enc)return;{const miss=jumpCrewMissing();if(miss.length){toast(`You can't take the ship through without ${miss.join(" and ")} on duty.`);return}}
   let to;if(dir==="in"){ensureUnknown();to=G.systems.find(q=>q.id===G.unknown.exit)}else to=G.systems.find(q=>q.id===G.lore.sites.gate);if(!to)return;
   if(sysv.open)closeSystem();sh.fuel=Math.round((sh.fuel-5)*10)/10;sh.at=to.id;sh.near=null;sh.orbit=null;sh.visits++;to.scanned=Math.max(to.scanned||0,1);passDay(1);
   logMsg(dir==="in"?`You pass through the Lattice Gate into the Unknown. The stars here are dim and wrong.`:`You come back through the Lattice Gate. The stars burn bright again.`);
@@ -5335,7 +5346,10 @@ const ION_PARTS=["Focusing Crystal","Lattice Coil","Resonance Chamber","Ion Capa
 const ION_CD=14,ION_FUEL=4,ION_R=460,ION_ENG=55;
 function ensureRuinsDone(){if(G.ruinsChecked)return;G.ruinsChecked=true;
   for(const q of G.systems||[])q.planets.forEach((p,i)=>{if(p.ruins&&!p.vaelSite&&!p.ruinsDone&&p.land&&p.land.doneAt&&Object.keys(p.land.doneAt).some(k=>k[0]==="r")){try{genTerrain(q,i)}catch(e){}}})}
-function ensureVaelParts(){ensureRuinsDone();try{ensureFallen()}catch(e){}
+function ensureStations(){if(!G.ship||G.ship.stationsV)return;const sh=G.ship;sh.stationsV=1;const filled=[];
+  for(const k of ["nav","eng","sci","com","wpn","med"]){if(crewIn(k))continue;const who=sh.crew.find(c=>twoPosts(c)&&!c.role2&&c.role==="xo")||sh.crew.find(c=>twoPosts(c)&&!c.role2);if(!who)break;who.role2=k;filled.push(`${who.name} ${stationName(k)}`)}
+  if(filled.length)logMsg(`Every station now needs someone on duty, so your officers took on extra posts: ${filled.join(", ")}. You can change this on the Crew tab.`)}
+function ensureVaelParts(){ensureRuinsDone();try{ensureStations()}catch(e){}try{ensureFallen()}catch(e){}
   if(G.lore&&G.lore.found&&G.lore.found.includes(16)&&!G.lore.sites.chamber&&G.unknown){setupChamber()}
   // older galaxies could put ruins on gas giants, where no rover can land
   for(const q of G.systems||[])for(const p of q.planets)if(p.type==="Gas giant"&&p.ruins&&!p.vaelSite&&p.vaelPart===undefined)p.ruins=false;
@@ -5380,7 +5394,7 @@ function ionHtml(){const sh=ship();if(!G.vparts||!G.vparts.length)return "";
 window.addEventListener("keydown",e=>{if(gameMode!=="captain"||!G.ship||typing(e)||!$("modal").hidden||land||(port&&port.open))return;
   if(e.key==="1"){e.preventDefault();toggleShields();if(!enc)renderCaptain()}else if(e.key==="2"){e.preventDefault();toggleArm();if(!enc)renderCaptain()}else if(e.key==="3"){e.preventDefault();toggleIon();if(!enc)renderCaptain()}});
 
-const VERSION="0.86"; // bump with every change
+const VERSION="0.87"; // bump with every change
 
 // =====================================================================
 // ---------- AUTOMATIC BACKUPS THAT SURVIVE CLEARING THE BROWSER ----------
@@ -5488,7 +5502,7 @@ const ABOUT=[
 <p class="hint">Version ${typeof VERSION!=="undefined"?VERSION:""}</p>`}
 ];
 // CHANGELOG:BEGIN (generated from CHANGELOG.md)
-const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.86</h3>\n<ul>\n<li><b>Disembark anywhere.</b> Your captain can step out of the rover on any planet. The game tells you roughly how many seconds of air you have, and the suit refills in the rover and inside the lander's circle.</li>\n<li><b>Lift-off needs everyone home.</b> The rover has to be back inside the lander's circle before you can lift off.</li>\n<li>The Hall of Captains says more about how some captains died.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.85</h3>\n<ul>\n<li>Better odds on the cantina slot machines.</li>\n<li>New lore around the slot machines.</li>\n</ul>\n<h3>0.84</h3>\n<ul>\n<li><b>A slot machine</b> in alien cantinas, with a jackpot that grows with every pull. Some say there's a reason nobody plays it.</li>\n<li>New tall tales in the lounges.</li>\n</ul>\n<h3>0.83</h3>\n<ul>\n<li><b>The story continues.</b> Something new waits for those who make the Lattice sing.</li>\n<li>A new tall tale in the lounges.</li>\n<li>Fixed: the Codex could show keys aboard after they had been used.</li>\n</ul>\n<h3>0.82</h3>\n<ul>\n<li><b>Space suits reworked.</b> The free suit now holds much less air, and there are three better suits to buy at the shipyard. Suits you've already bought move up a level.</li>\n<li>Rover batteries rebalanced.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.81</h3>\n<ul>\n<li><b>Rover upgrades rebalanced.</b> Each level is a smaller step, so a fully upgraded rover is strong but no longer unstoppable.</li>\n<li>Your rover's upgrades now show on the Ship tab.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.80</h3>\n<ul>\n<li><b>Stranded on foot.</b> If your rover runs out of power or is wrecked far from the lander, your captain has to abandon it and walk back in a space suit before the air runs out.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.79.1</h3>\n<ul>\n<li>New tall tales in lounges, cantinas and taverns.</li>\n<li>Planets no longer list ruins once you've explored them all.</li>\n<li>Fixed the Codex count shown when loading a save.</li>\n</ul>\n<h3>0.79</h3>\n<ul>\n<li><b>Name your captain</b> when you start a new game.</li>\n<li><b>Hall of Captains</b> at your home starbase, honoring captains lost in service.</li>\n<li><b>Exploring on foot.</b> Some places the rover can't reach. Step out in a space suit and walk. Better suits are sold at the shipyard.</li>\n<li><b>New chapters in the main story.</b></li>\n<li>Ruins no longer appear on gas giants.</li>\n<li><b>Fixed:</b> pressing Enter on a planet's surface could land you again and speed up the rover.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.78</h3>\n<ul>\n<li><b>Stardate.</b> Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.</li>\n<li><b>Ship skins.</b> Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.</li>\n<li><b>A hidden tribute</b> to a beloved captain, waiting to be found.</li>\n<li><b>Every species has its own look.</b> The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.</li>\n<li>You can no longer colonize a planet that already has an alien colony.</li>\n<li>Friendly visitors in the starport corridor now look like their own species.</li>\n</ul>\n<h3>0.77.1</h3>\n<ul>\n<li>Updated title screen text.</li>\n</ul>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
+const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.87</h3>\n<ul>\n<li><b>Every crew station matters.</b> An empty station is no longer covered. Without the right officer you can't scan, hail, fire or heal, and the ship can't jump without a captain, navigator and engineer.</li>\n<li>The Captain and First Officer can each take a second station, and you can reassign your crew from the Crew tab anywhere.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.86</h3>\n<ul>\n<li><b>Disembark anywhere.</b> Your captain can step out of the rover on any planet. The game tells you roughly how many seconds of air you have, and the suit refills in the rover and inside the lander's circle.</li>\n<li><b>Lift-off needs everyone home.</b> The rover has to be back inside the lander's circle before you can lift off.</li>\n<li>The Hall of Captains says more about how some captains died.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.85</h3>\n<ul>\n<li>Better odds on the cantina slot machines.</li>\n<li>New lore around the slot machines.</li>\n</ul>\n<h3>0.84</h3>\n<ul>\n<li><b>A slot machine</b> in alien cantinas, with a jackpot that grows with every pull. Some say there's a reason nobody plays it.</li>\n<li>New tall tales in the lounges.</li>\n</ul>\n<h3>0.83</h3>\n<ul>\n<li><b>The story continues.</b> Something new waits for those who make the Lattice sing.</li>\n<li>A new tall tale in the lounges.</li>\n<li>Fixed: the Codex could show keys aboard after they had been used.</li>\n</ul>\n<h3>0.82</h3>\n<ul>\n<li><b>Space suits reworked.</b> The free suit now holds much less air, and there are three better suits to buy at the shipyard. Suits you've already bought move up a level.</li>\n<li>Rover batteries rebalanced.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.81</h3>\n<ul>\n<li><b>Rover upgrades rebalanced.</b> Each level is a smaller step, so a fully upgraded rover is strong but no longer unstoppable.</li>\n<li>Your rover's upgrades now show on the Ship tab.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.80</h3>\n<ul>\n<li><b>Stranded on foot.</b> If your rover runs out of power or is wrecked far from the lander, your captain has to abandon it and walk back in a space suit before the air runs out.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.79.1</h3>\n<ul>\n<li>New tall tales in lounges, cantinas and taverns.</li>\n<li>Planets no longer list ruins once you've explored them all.</li>\n<li>Fixed the Codex count shown when loading a save.</li>\n</ul>\n<h3>0.79</h3>\n<ul>\n<li><b>Name your captain</b> when you start a new game.</li>\n<li><b>Hall of Captains</b> at your home starbase, honoring captains lost in service.</li>\n<li><b>Exploring on foot.</b> Some places the rover can't reach. Step out in a space suit and walk. Better suits are sold at the shipyard.</li>\n<li><b>New chapters in the main story.</b></li>\n<li>Ruins no longer appear on gas giants.</li>\n<li><b>Fixed:</b> pressing Enter on a planet's surface could land you again and speed up the rover.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.78</h3>\n<ul>\n<li><b>Stardate.</b> Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.</li>\n<li><b>Ship skins.</b> Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.</li>\n<li><b>A hidden tribute</b> to a beloved captain, waiting to be found.</li>\n<li><b>Every species has its own look.</b> The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.</li>\n<li>You can no longer colonize a planet that already has an alien colony.</li>\n<li>Friendly visitors in the starport corridor now look like their own species.</li>\n</ul>\n<h3>0.77.1</h3>\n<ul>\n<li>Updated title screen text.</li>\n</ul>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
 // CHANGELOG:END
 const MANUAL=[
  {t:"Welcome",h:`<h3>Welcome aboard, Captain</h3>
@@ -5535,7 +5549,8 @@ const MANUAL=[
 <ul>
 <li>Every crew member has seven skills (Science, Navigation, Engineering, Communications, Medicine, Weapons and Charisma) and works one station. Their skill at that station grows with use, up to their species' limit.</li>
 <li>You <b>name your captain</b> when a new game begins.</li>
-<li>The <b>Captain</b> leads, and their Charisma affects trades and first impressions. The <b>First Officer</b> covers empty stations and can hold a second post.</li>
+<li>The <b>Captain</b> leads, and their Charisma affects trades and first impressions. The <b>First Officer</b> can hold a second post, and so can the Captain.</li>
+<li><b>Every station matters.</b> Nobody covers an empty one. Without a science officer you can't scan, without a communications officer you can't hail, without a weapons officer you can't fire (shields still work), and without a doctor nobody heals. To jump at all you need a captain, a navigator and an engineer. Reassign stations any time on the Crew tab.</li>
 <li>Crew have <b>hit points</b>. Injured crew work less well. A doctor heals a little on every jump, or can treat someone directly from the Crew tab. Without a doctor the badly hurt get worse, and crew can die.</li>
 <li>If the captain falls, the First Officer takes command. If both are lost, the crew member with the most charisma steps up.</li>
 <li>Train skills and hit points at the starbase's Personnel office, and hire new crew there.</li>
