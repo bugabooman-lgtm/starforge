@@ -6,6 +6,12 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.86
+- **Disembark anywhere.** Your captain can step out of the rover on any planet. The game tells you roughly how many seconds of air you have, and the suit refills in the rover and inside the lander's circle.
+- **Lift-off needs everyone home.** The rover has to be back inside the lander's circle before you can lift off.
+- The Hall of Captains says more about how some captains died.
+- A new tall tale in the lounges.
+
 ## 0.85
 - Better odds on the cantina slot machines.
 - New lore around the slot machines.
