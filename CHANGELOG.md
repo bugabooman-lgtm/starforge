@@ -6,6 +6,11 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.79.1
+- New tall tales in lounges, cantinas and taverns.
+- Planets no longer list ruins once you've explored them all.
+- Fixed the Codex count shown when loading a save.
+
 ## 0.79
 - **Name your captain** when you start a new game.
 - **Hall of Captains** at your home starbase, honoring captains lost in service.
