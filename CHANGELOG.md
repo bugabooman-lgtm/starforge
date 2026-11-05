@@ -6,6 +6,12 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.88
+- **Play offline.** Download the game, with your current game inside it, from Saves, Backups & Updates.
+- Updated boarding.
+- Updated manual.
+- A new tall tale in the lounges.
+
 ## 0.87
 - **Every crew station matters.** An empty station is no longer covered. Without the right officer you can't scan, hail, fire or heal, and the ship can't jump without a captain, navigator and engineer.
 - The Captain and First Officer can each take a second station, and you can reassign your crew from the Crew tab anywhere.
