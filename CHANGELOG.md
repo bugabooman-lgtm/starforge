@@ -6,6 +6,12 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.89
+- **The old colony.** Your home system now has the oldest human settlement in this part of space, with a few things you won't find anywhere else. Pay it a visit.
+- New chatter and tall tales in the lounges, cantinas and taverns.
+- Wording updates.
+- Updated manual.
+
 ## 0.88
 - **Play offline.** Download the game, with your current game inside it, from Saves, Backups & Updates.
 - Updated boarding.
@@ -76,7 +82,7 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 - Updated title screen text.
 
 ## 0.77
-- **More realistic people.** Everyone in the game has been redrawn, from your crew to the peoples beyond the frontier.
+- **More realistic people.** Everyone in the game has been redrawn, from your crew to the species beyond the frontier.
 - **New ways to spend credits:**
   - Crew quarters and a med bay for your ship.
   - Paint schemes, and your ship's name painted on the hull.
