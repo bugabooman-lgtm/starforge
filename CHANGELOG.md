@@ -6,6 +6,16 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.90
+- **Combat rebalanced.** Alien ships hit harder and take more punishment, especially the stronger species.
+- **Things break.** The jump drive can fail mid-jump and rovers can break down. Keep your ship serviced and your engineer sharp.
+- **Crew skill matters more.** Inexperienced officers sometimes fumble scans, hails and jump plots.
+- Breathable worlds no longer need a helmet.
+- Fewer distress calls.
+- Updated Krillian dialogue.
+- New tall tales in the lounges, cantinas and taverns.
+- Updated manual.
+
 ## 0.89
 - **The old colony.** Your home system now has the oldest human settlement in this part of space, with a few things you won't find anywhere else. Pay it a visit.
 - New chatter and tall tales in the lounges, cantinas and taverns.
@@ -116,7 +126,7 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 - **Wanted goods.** Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.
 - **Surrender.** Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.
 - **Cantina talk.** Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.
-- New faces in the cantinas. Some of them offer work.
+- New faces in the cantinas. Some of them offer their services.
 - Manual updated with the new features.
 
 ## 0.75

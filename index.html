@@ -795,9 +795,23 @@ function jumpCost(s){const h=here();const d=Math.hypot(s.x-h.x,s.y-h.y);return {
 const STATION_NEED={sci:"No science officer on duty. Nobody aboard can run the scanners.",com:"No communications officer on duty. Nobody can work the comms.",wpn:"No weapons officer on duty. Nobody is at the guns."};
 function needStation(k,inEnc){if(staffed(k))return true;const m=STATION_NEED[k];if(inEnc&&enc){encLine(`<span style="color:var(--amber)">${m}</span>`);renderEnc()}else toast(m);return false}
 function jumpCrewMissing(){const m=[];if(!crewIn("cap"))m.push("a captain");if(!staffed("nav"))m.push("a navigator");if(!staffed("eng"))m.push("an engineer");return m}
+// chance the jump drive fails partway: longer jumps, a battered hull and time since the last starbase service all raise it; a good engineer lowers it
+function breakdownChance(d){const sh=ship(),hm=hullMax(sh.up.armor),wear=Math.min(1,((sh.day||0)-(sh.serviced||0))/90);
+  const p=.012+Math.min(.05,d/1500)+(1-Math.min(1,sh.hull/hm))*.13+wear*.08;return Math.max(.003,p*(1.5-Math.min(100,eff("eng"))/100))}
+function repairDays(){return Math.max(1,Math.round(4-Math.min(100,eff("eng"))/33))}
+// misjump odds by navigation skill: 25% at 0, 10% at 30, 4.8% at 60, falling to 0 at 100
+function misjumpChance(){const n=Math.max(0,Math.min(100,eff("nav")));return n<30?.25-n*.005:n<60?.10-(n-30)*.052/30:.12*(100-n)/100}
+function misjumpTarget(from,s,d){if(d<5||from.unknown||s.unknown||Math.random()>=misjumpChance())return null;
+  const r=Math.min(45,Math.max(15,d*.6)),dist=x=>Math.hypot(x.x-from.x,x.y-from.y);
+  const c=G.systems.filter(x=>x!==s&&x!==from&&!x.deep&&!x.unknown&&!x.inNeb&&dist(x)<=r&&dist(x)<d);
+  if(c.length&&Math.random()>=.3)return pick(Math.random,c);
+  for(let t=0;t<20;t++){const ang=Math.random()*Math.PI*2,dd=Math.min(d*.9,15+Math.random()*(r-15));const x=Math.round(from.x+Math.cos(ang)*dd),y=Math.round(from.y+Math.sin(ang)*dd);
+    if(G.systems.every(q=>Math.hypot(q.x-x,q.y-y)>=6))return {id:G.nextId++,name:"Deep space",x,y,cls:"M",planets:[],deep:true,lost:true,scanned:2,starbase:false,home:false,custom:false,unknown:false}}
+  return c.length?pick(Math.random,c):null}
 function jumpTo(s,force){
   const sh=ship();let {d,fuel}=jumpCost(s);
   {const miss=jumpCrewMissing();if(miss.length){toast(`You can't jump without ${miss.join(" and ")} on duty. Assign them on the Crew tab.`);return}}
+  if(sh.broken){toast("The jump drive is down. Repair it first, or radio for a tow.");return}
   if(!!here().unknown!==!!s.unknown){toast("The edge of the Lattice can only be crossed at the Gate.");return}
   if(fuel>sh.fuel&&!force){
     const reach=Math.floor(sh.fuel/fuelPerLy());
@@ -811,7 +825,10 @@ function jumpTo(s,force){
     const frac=Math.max(0,Math.min(1,sh.fuel/fuel));
     to={id:G.nextId++,name:"Deep space",x:Math.round(from.x+(s.x-from.x)*frac),y:Math.round(from.y+(s.y-from.y)*frac),cls:"M",planets:[],deep:true,scanned:2,starbase:false,home:false,custom:false,headingTo:s.id,unknown:!!from.unknown};
     G.systems.push(to);d=d*frac;fuel=sh.fuel;
-  }
+  } else if(d>=6&&!s.unknown&&!from.unknown&&Math.random()<breakdownChance(d)){ // the drive fails partway
+    const frac=.25+Math.random()*.5;to={id:G.nextId++,name:"Deep space",x:Math.round(from.x+(s.x-from.x)*frac),y:Math.round(from.y+(s.y-from.y)*frac),cls:"M",planets:[],deep:true,breakdown:true,scanned:2,starbase:false,home:false,custom:false,headingTo:s.id,unknown:!!from.unknown};
+    G.systems.push(to);d=d*frac;fuel=fuel*frac;sh.broken={days:repairDays()};
+  } else {const alt=misjumpTarget(from,s,d);if(alt){if(alt.lost)G.systems.push(alt);to=alt;sh.misjump=s.name;d=Math.hypot(alt.x-from.x,alt.y-from.y);fuel=Math.ceil(d*fuelPerLy()*10)/10}}
   sh.fuel=Math.max(0,Math.round((sh.fuel-fuel)*10)/10);
   anim={from,to,t:0,dur:Math.min(2200,500+d*25)};const t0=performance.now();
   const step=now=>{anim.t=Math.min(1,(now-t0)/anim.dur);draw();if(anim.t<1)requestAnimationFrame(step);else{leaveDeep(from,to);arrive(to,d)}};
@@ -823,7 +840,16 @@ function arrive(s,d){
   anim=null;const sh=ship();sh.at=s.id;sh.visits++;
   if(s.alienBase&&!s.alien)revealBase(s);
   nebulaNotice(s);if(s.inNeb&&!s.nebSeenIn){s.nebSeenIn=true;if(s.nebCore)logMsg(`The pathfinder threads you through the green murk into the heart of the ${nebOf(s).name}. From in here you can see the stars outside, but nothing outside can see you.`)}
-  if(s.deep){sh.fuel=0;logMsg(`Out of fuel! Drifting in deep space at (${fmt(s.x)}, ${fmt(-s.y)}). Use the radio to call for fuel or a tow.`);toast("Out of fuel. Drifting")}
+  if(s.deep&&s.breakdown){const eng=crewIn("eng");logMsg(`The jump drive fails with a bang and the ship drops out of the jump, drifting in deep space at (${fmt(s.x)}, ${fmt(-s.y)}). ${eng?`${eng.captain?"Captain ":""}${eng.name} reckons ${sh.broken.days} day${sh.broken.days===1?"":"s"} to repair it.`:""}`);toast("Drive failure!")}
+  else if(sh.misjump&&s.lost){const nav=crewIn("nav"),who=nav?`${nav.captain?"Captain ":""}${nav.name}`:"";
+    logMsg(`Misjump! The ship drops out of the jump in empty space, nowhere near ${sh.misjump}. There isn't a star within light-years.${nav?" "+who+" "+pick(Math.random,[
+      "stares at the charts, then out the viewport, then back at the charts. \"That's... that's not possible. We should be... I don't... where ARE we?\"",
+      "turns the star chart upside down, then right side up again. \"No. No, hang on. Give me a minute. Is that the same galaxy?\"",
+      "keeps tapping the nav console like it owes them money. \"The plot was fine. The plot was FINE. Space just isn't where I left it.\"",
+      "goes very pale. \"I've checked it three times. According to this, we're inside a star. We are clearly not inside a star.\"",
+      "asks, very quietly, whether anyone else remembers which way is home."]):""} The drive is fine. Plot a jump out of here.`);toast("Misjump! Lost in deep space");sh.misjump=null}
+  else if(sh.misjump){const nav=crewIn("nav");logMsg(`Misjump! A bad course plot dropped the ship at ${s.name} instead of ${sh.misjump}.${nav?` ${nav.captain?"Captain ":""}${nav.name} ${pick(Math.random,["swears the charts were wrong.","is very quietly rechecking the math.","blames a stray decimal point.","says nothing and looks at the floor."])}`:""}`);toast("Misjump!");sh.misjump=null}
+  else if(s.deep){sh.fuel=0;logMsg(`Out of fuel! Drifting in deep space at (${fmt(s.x)}, ${fmt(-s.y)}). Use the radio to call for fuel or a tow.`);toast("Out of fuel. Drifting")}
   const days=Math.max(1,Math.ceil(d/4));sh.day=(sh.day||0)+days;growColonies();depotTick(days);distressTick(days);crewTick(days);krillTick();
   gainXP("nav",d*.6);gainXP("eng",d*.3);
   if(shUp()&&!s.deep){const f=Math.round(sh.up.shields*d*.02*10)/10;sh.fuel=Math.max(0,Math.round((sh.fuel-f)*10)/10);if(f>=.5)logMsg(`Keeping shields up during the jump used ${f} fuel.`);dropShieldsIfDry()}
@@ -849,7 +875,7 @@ function arrive(s,d){
   selected=s;view.x=s.x;view.y=s.y;changed();
 }
 function dockAt(s){
-  const sh=ship();if(sh.prize)sellPrize();if(sh.calls&&sh.calls.length){logMsg(`${sh.calls.length>1?sh.calls.length+" distress calls":"A distress call"} went unanswered. Starbase traffic control has taken over.`);sh.calls=[]}settleRoverStore();if(sh.armed||sh.shieldsUp||sh.ionArmed){sh.armed=false;sh.shieldsUp=false;sh.ionArmed=false;logMsg("Starbase rules: weapons on safe and shields down while docked.")}
+  const sh=ship();sh.serviced=sh.day||0;if(sh.broken){sh.broken=null;logMsg("The starbase crew repaired the jump drive.")}if(sh.prize)sellPrize();if(sh.calls&&sh.calls.length){logMsg(`${sh.calls.length>1?sh.calls.length+" distress calls":"A distress call"} went unanswered. Starbase traffic control has taken over.`);sh.calls=[]}settleRoverStore();if(sh.armed||sh.shieldsUp||sh.ionArmed){sh.armed=false;sh.shieldsUp=false;sh.ionArmed=false;logMsg("Starbase rules: weapons on safe and shields down while docked.")}
   if(sh.data>0){const pay=Math.round(sh.data);sh.credits+=pay;logMsg(`Docked at ${s.name}. Sold survey data for ${pay} credits.`);sh.data=0}
   else logMsg(`Docked at ${s.name} starbase.`);
   reviewReports();
@@ -1050,12 +1076,17 @@ function maybeEncounter(sys){
   }
   return false;
 }
+function foeStats(key,str){const d=def(key);
+  if(key==="quiet")return {hp:40+str*25,atk:5+str*4};
+  if(d.str<4||key==="krillian")return {hp:60+str*45,atk:6+str*6};
+  return {hp:80+str*60,atk:8+str*8}}
 function startEncounter(a,atHome,roaming){
   const d=def(a.key);meet(a);
   if(atHome)a.known=true;
   const str=d.str+(atHome?2:0);
   const st=stanceOf(a.att);
-  enc={a,atHome,str,hp:40+str*25,maxhp:40+str*25,atk:5+str*4,fighting:st==="Hostile",
+  const FS=foeStats(a.key,str);
+  enc={a,atHome,str,hp:FS.hp,maxhp:FS.hp,atk:FS.atk,fighting:st==="Hostile",
     lines:[], toll:!krSmuggling()&&st==="Wary"&&d.toll?Math.round(d.toll*(atHome?1.5:1)):0, done:false, hailed:false};
   initTactical(enc);
   enc.reinf=G.ship?reinforceSource(a,here()):null;enc.reinfActive=st==="Hostile";
@@ -1207,6 +1238,7 @@ function renderEnc(){
   on("eAttack",()=>{enc.reinfActive=true;const was=stanceOf(a.att);changeAtt(a,was==="Hostile"?-5:-40);enc.fighting=true;enc.noTrade=true;enc.trading=false;if(enc.video){enc.video=false;encLine("The video link cuts out.")}encLine(`You open fire on the ${esc(d.name)}!${ldOf().shieldsUp?"":" Their shields are down. Your first shot hits clean."}`);playerShoot(sh.up.weapons?"laser":"torp");renderEnc()});
 }
 function hail(){if(!needStation("com",true))return;
+  if(stationFault("com",.18)){encLine(`<span style="color:var(--amber)">${pick(Math.random,["Nothing but static. The hail didn't go through.","The transmitter drops out mid-hail. Try again.","Wrong frequency. Nobody heard you."])}</span>`);if(enc.fighting)enemyFires();renderEnc();return}
   if(enc.a.key==="krillian"&&enc.fighting){enc.hailed=true;enc.payoff=enc.payoff||krillPayoff();encLine(`“Ah, a negotiator! ${enc.payoff} credits and we remember an urgent appointment elsewhere.”`);renderEnc();return}
   if(enc.a.key==="quiet"){enc.hailed=true;encLine("You hail on every frequency. There is no answer, only a silence that seems to listen.");if(enc.fighting)enemyFires();renderEnc();return}
   const a=enc.a,d=def(a.key),st=stanceOf(a.att),com=eff("com")+eff("cha")*.6+(enc.video?15:0);enc.hailed=true;gainXP("com",6);gainXP("cha",4);
@@ -1435,6 +1467,7 @@ function scan(){
   const s=here(),sh=ship();
   if(s.scanned){openSystem();return}
   if(!needStation("sci"))return;
+  if(stationFault("sci",.15)){logMsg("The system scan fills up with static. Nothing usable. Try again.");toast("Scan failed");return}
   s.scanned=1;
   const value=Math.round((40+s.planets.length*15)*(1+sh.up.sensors*.2)*(1+eff("sci")/100));
   sh.data+=value;gainXP("sci",6+s.planets.length);
@@ -1477,7 +1510,7 @@ function renderCaptain(){
       return `<div class="planet"><div class="dot" style="background:${k?PTYPE[p.type]:"#3a4560"}"></div>
       <div class="meta">${esc(p.name)} ${k?`<span>· ${p.type}, size ${p.size}</span><br>
         <span>Atmo</span> ${p.atmo} <span>· Life</span> ${p.life}<br>
-        <span>Minerals</span> ${p.minerals.join(", ")}${ruinsLeft(p)?' <b style="color:var(--cyan)">· Ruins</b>':""}<br>
+        <span>Minerals</span> ${minLine(p)}${ruinsLeft(p)?' <b style="color:var(--cyan)">· Ruins</b>':""}<br>
         <span>Habitability</span> <b style="color:${habColor(habitability(p))};font-weight:400">${habitability(p)} ${habLabel(habitability(p))}</b>`:`<span>· unscanned</span>`}
         ${p.alienOutpost&&aoVisible(p)?`<div style="margin-top:3px"><span class="tag" style="color:${def(p.alienOutpost).color}">${esc(def(p.alienOutpost).name)} outpost</span></div>`:""}
         ${p.alienColony&&colVisible(s,p)?`<div style="margin-top:3px"><span class="tag" style="color:${def(p.alienColony).color}">${esc(def(p.alienColony).name)} colony</span></div>`:""}
@@ -1504,9 +1537,10 @@ function renderCaptain(){
     <div class="data">Coords <b>${fmt(s.x)}, ${fmt(-s.y)}</b>${s.deep?" · no star nearby":` · Class <b>${s.cls}</b> ${STAR[s.cls].name}`}</div>
     ${alienBasesHtml(s)}${isHere&&!enc&&!anim?alienStarbaseHtml(s)+gateHtml(s)+generatorHtml(s)+songHtml(s)+keySiteHtml(s):""}
     ${(()=>{const t=territoryOf(s);if(!t||!t.met)return "";const st=stanceOf(t.att);return `<p class="hint">Inside <b style="color:${def(t.key).color};font-weight:600">${esc(def(t.key).name)}</b> space · they are <b style="color:${stanceColor(st)};font-weight:600">${st.toLowerCase()}</b> toward you.</p>`})()}
-    ${action}${isHere&&!enc?embassyHtml(s):""}${planetsHtml}${!docked()&&!anim&&!enc?(inUnknown()?relayHtml():radioHtml()):""}`;
+    ${action}${isHere&&!enc?embassyHtml(s):""}${planetsHtml}${!docked()&&!anim&&!enc?repairHtml()+(inUnknown()?relayHtml():radioHtml()):""}`;
   if(isHere&&!enc)wireEmbassy(s);
   const cj=$("cJump");if(cj)cj.onclick=()=>jumpTo(dest);
+  {const fb=el.querySelector("#drvFix");if(fb)fb.onclick=repairDrive}
   el.querySelectorAll("[data-distress]").forEach(b=>b.onclick=()=>{const t=G.systems.find(x=>x.id==b.dataset.distress);if(sysv.open)closeSystem();selected=t;view.x=t.x;view.y=t.y;changed()});
   el.querySelectorAll("[data-abfuel]").forEach(b=>b.onclick=()=>alienBuyFuel(s.alienBase,alienDeal(s.alienBase,"starbase",s.id),"starbase"));
   el.querySelectorAll("[data-abrep]").forEach(b=>b.onclick=()=>alienRepair(s.alienBase));
@@ -1796,6 +1830,12 @@ const radioDays=(b=towBase())=>Math.max(1,Math.ceil(distTo(b)/8));
 const radioFuelAmt=()=>Math.max(0,Math.round((tankCap(ship().up.tank)-ship().fuel)*10)/10);
 const radioFuelCost=()=>{const b=towBase();return Math.round((radioFuelAmt()*(b.home?6:9)*priceMult()*1.6+100+distTo(b)*3)*(insured()?.5:1))};
 const towFee=()=>Math.round((400+Math.round(distTo(towBase())*5))*(insured()?.5:1));
+function repairHtml(){const sh=ship();if(!sh.broken)return "";const eng=crewIn("eng"),n=sh.broken.days;
+  return `<div class="member" style="border-color:var(--danger)"><h2 style="color:var(--danger)">Drive failure</h2>
+    <p class="hint" style="color:var(--text)">The jump drive is down. ${eng?`${esc(eng.name)} can have it running again in about ${n} day${n===1?"":"s"}.`:"Nobody aboard can repair it. Radio for a tow."}</p>
+    ${eng?`<div class="row"><button class="sm primary" id="drvFix">Repair the drive (${n} day${n===1?"":"s"})</button></div>`:""}</div>`}
+function repairDrive(){const sh=ship();if(!sh.broken)return;const n=sh.broken.days,eng=crewIn("eng");sh.broken=null;passDay(n);gainXP("eng",15);
+  logMsg(`${eng?eng.name:"The crew"} got the jump drive running again after ${n} day${n===1?"":"s"} of work.`);toast("Drive repaired");changed()}
 function radioHtml(){
   const sh=ship(),b=towBase(),amt=radioFuelAmt(),fc=radioFuelCost(),tf=towFee();
   return `<div class="member" style="margin-top:4px"><div class="row" style="justify-content:space-between"><h2>Radio</h2><span class="data" style="font-size:17px">Credits <b>${Math.round(sh.credits).toLocaleString()}</b></span></div>
@@ -1811,7 +1851,7 @@ function orderFuel(){const sh=ship(),amt=radioFuelAmt(),fc=radioFuelCost();if(sh
   sh.credits-=fc;sh.fuel=tankCap(sh.up.tank);passDay(radioDays());logMsg(`A fuel tanker from ${towBase().name} delivered ${amt} fuel for ${fc} credits.`);toast("Tanks filled");$("modal").hidden=true;changed()}
 function stranded(){if(anim||docked())return false;const h=here();return !G.systems.some(s=>s!==h&&jumpCost(s).fuel<=ship().fuel)}
 function tow(){const sh=ship(),h=here();const b=towBase();setTimeout(()=>leaveDeep(h,here()),0);const fee=Math.min(sh.credits,towFee());$("modal").hidden=true;if(sysv.open)closeSystem();if(b!==h)passDay(radioDays(b));sh.orbit=null;sh.near=null;
-  sh.credits-=fee;sh.at=b.id;logMsg(`Towed to ${b.name} for ${fee} credits. Keep an eye on that fuel gauge.`);dockAt(b);selected=b;view.x=b.x;view.y=b.y;changed()}
+  sh.credits-=fee;sh.at=b.id;const wasBroken=!!sh.broken;sh.broken=null;logMsg(`Towed to ${b.name} for ${fee} credits.${wasBroken?" The yard crew repaired the jump drive.":" Keep an eye on that fuel gauge."}`);dockAt(b);selected=b;view.x=b.x;view.y=b.y;changed()}
 
 // ---------- custom systems ----------
 function createCustom(x,y){
@@ -3479,7 +3519,7 @@ function renderSysCard(){
   if(sysv.remote)acts=`<button id="sBack">Back to system</button>`;
   else if(!inOrbit)acts=`<button class="primary" id="sOrbit">Move into orbit</button><button id="sBack">Back to system</button>`;
   else{
-    acts=`${k?"":`<button class="primary" id="sScanP">Scan planet</button>`}
+    acts=`${k&&!p.minGarbled?"":`<button class="primary" id="sScanP">${k?"Rescan minerals":"Scan planet"}</button>`}
       ${gas?`<button id="sSkim" ${(p.mined||0)>=MAX_MINES?"disabled":""}>${(p.mined||0)>=MAX_MINES?"Skimmed out (refills in time)":"Skim for fuel"}</button>`:
         p.alienOutpost&&aoVisible(p)?`${alienOutpostDealHtml(s,i).startsWith("<button")?alienOutpostDealHtml(s,i):""}<button disabled>No landing</button><button class="danger" id="sAtkOut" ${hot()?"":'disabled title="Arm weapons first (Weapons tab)"'}>Attack outpost</button>`:
         p.alienColony&&colVisible(s,p)?`${colonyButtons(s,i)}<button disabled title="The colony controls who lands">No rover landings</button>`:
@@ -3496,7 +3536,7 @@ function renderSysCard(){
     ${colonyHtml(s,i,inOrbit)}
     ${p.alienOutpost&&aoVisible(p)?`<div class="item" style="border-color:${def(p.alienOutpost).color}"><div>${esc(def(p.alienOutpost).name)} outpost<div class="d">Armed and watched. Outsiders can't land here.${inOrbit?" "+alienOutpostDealHtml(s,i).replace(/<[^>]+>/g,"").replace(/^Buy fuel.*/,"They'll sell you fuel."):""}</div></div><div></div></div>`:""}
     ${k?`<div class="data" style="font-size:17px">${p.type} · size <b>${p.size}</b>${p.native?` · <b style="color:${def(p.native).color}">${esc(def(p.native).name)} homeworld</b>`:""}</div>`:""}
-    ${k?`<div class="data" style="font-size:17px">Atmosphere <b>${p.atmo}</b> · Life <b>${p.life}</b><br>Minerals <b>${p.minerals.join(", ")}</b>${ruinsLeft(p)?' · <b style="color:var(--cyan)">Ruins detected</b>':""}<br>Habitability <b style="color:${habColor(hab)}">${hab} ${habLabel(hab)}</b>${p.colony?` · <span class="tag home">${COLONY_STAGES[p.colony.stage]}</span>`:""}</div>`
+    ${k?`<div class="data" style="font-size:17px">Atmosphere <b>${p.atmo}</b> · Life <b>${p.life}</b><br>Minerals <b>${minLine(p)}</b>${ruinsLeft(p)?' · <b style="color:var(--cyan)">Ruins detected</b>':""}<br>Habitability <b style="color:${habColor(hab)}">${hab} ${habLabel(hab)}</b>${p.colony?` · <span class="tag home">${COLONY_STAGES[p.colony.stage]}</span>`:""}</div>`
       :`<p class="hint">${sysv.remote?"You never scanned this planet.":inOrbit?"Unscanned. Scan from orbit to learn what this world is.":"Unscanned. Move into orbit, then scan it."}</p>`}
     ${p.land&&p.land.doneAt&&Object.keys(p.land.doneAt).length?`<p class="hint">Your rover has worked ${Object.keys(p.land.doneAt).length} site${Object.keys(p.land.doneAt).length>1?"s":""} here. Mined deposits regrow in about ${REGROW_DAYS[p.type]||60} days, and new ones are exposed every month.</p>`:""}
     <div class="row">${acts}</div>`;
@@ -3574,12 +3614,18 @@ function drawPlanetScreen(){
 function drawOrbitShip(c,x,y,a,sc){c.save();c.translate(x,y);c.rotate(a+Math.PI/2);c.scale(sc,sc);
   c.fillStyle="#cfd8e8";c.beginPath();c.moveTo(12,0);c.lineTo(-8,-5);c.lineTo(-5,0);c.lineTo(-8,5);c.closePath();c.fill();
   c.fillStyle="rgba(150,200,255,.9)";c.fillRect(-12,-1.5,4,3);c.restore()}
+function stationFault(k,base){return Math.random()<base*Math.max(0,100-Math.min(100,eff(k)))/100}
+const minLine=p=>p.minGarbled?'<i style="color:var(--amber)">unreadable, scan again</i>':p.minerals.join(", ");
 function scanPlanet(s,i){if(!needStation("sci"))return;revealOutpost(s,s.planets[i]);
-  const sh=ship(),p=s.planets[i];if(known(s,p))return;
-  p.scanned=true;
+  const sh=ship(),p=s.planets[i];
+  if(p.minGarbled){if(stationFault("sci",.18)){logMsg(`The mineral readings on ${p.name} are still garbage. Try again.`);toast("Mineral data unreadable");return}
+    p.minGarbled=false;gainXP("sci",3);logMsg(`Mineral readings on ${p.name} cleaned up: ${p.minerals.join(", ")||"none"}.`);renderSysCard();changed();return}
+  if(known(s,p))return;
+  if(stationFault("sci",.18)){logMsg(`The scan of ${p.name} came back as noise. Run it again.`);toast("Scan failed");return}
+  p.scanned=true;if(p.minerals.length&&stationFault("sci",.15))p.minGarbled=true;
   let v=30+p.size*8+(p.life!=="None"?60:0)+(p.ruins?250:0)+(p.minerals.includes("Endurium")?120:0);
   v=Math.round(v*(1+sh.up.sensors*.2)*(1+eff("sci")/100));sh.data+=v;gainXP("sci",8);
-  logMsg(`Scanned ${p.name}: ${p.type}, ${p.atmo.toLowerCase()} atmosphere, ${p.minerals.length} minerals${p.ruins?", ruins detected":""}. Data worth ${v} credits.`);
+  logMsg(`Scanned ${p.name}: ${p.type}, ${p.atmo.toLowerCase()} atmosphere, ${p.minGarbled?"mineral data unreadable":p.minerals.length+" minerals"}${p.ruins?", ruins detected":""}. Data worth ${v} credits.`);
   renderSysCard();changed();
 }
 const landCost=p=>Math.round((.5+p.size*.25)*10)/10;
@@ -3754,12 +3800,14 @@ function tickLand(dt){
     if(dd<.5){L.target=L.path&&L.path.length?L.path.shift():null;if(!L.target)L.path=null}
     if(L.target){const ux=L.target[0]-rv.x,uy=L.target[1]-rv.y,d2=Math.hypot(ux,uy)||1;dx=ux/d2;dy=uy/d2}}
   rv.moving=false;
+  if(rv.stuck&&!(dx||dy)&&!L.target){L.stuckFix=(L.stuckFix||0)+dt;if(L.stuckFix>Math.max(2,6-Math.min(100,eff("eng"))/25)){rv.stuck=false;landMsg("The crew works the drive train loose. Full speed again.");renderLandHud()}}
   if((dx||dy)&&!L.stalled){
     const len=Math.hypot(dx,dy);dx/=len;dy/=len;
     const sp=speedAt(rv.x+dx*.8,rv.y+dy*.8);
-    if(sp>0){const v=7*sp*dt;rv.x+=dx*v;rv.y+=dy*v;rv.a=Math.atan2(dy,dx);rv.moving=true;
+    if(sp>0){const v=7*sp*dt*(rv.stuck?.5:1);rv.x+=dx*v;rv.y+=dy*v;rv.a=Math.atan2(dy,dx);rv.moving=true;
       const heat=L.p.type==="Molten"?1.8:L.p.type==="Frozen"?1.3:1;
-      rv.energy=Math.max(0,rv.energy-v*.22*heat*(1-eff("eng")/400));
+      rv.energy=Math.max(0,rv.energy-v*.22*heat*(1-eff("eng")/400)*(rv.leak?1.7:1));
+      roverFaultTick(L,v);
       if(Math.random()<.6)L.dust.push({x:rv.x-Math.cos(rv.a)*.8,y:rv.y-Math.sin(rv.a)*.8,life:1});
       if(rv.energy<=0){L.stalled=true;strandRover("The rover is out of power.");renderLandHud()}
       revealAround();
@@ -3912,7 +3960,7 @@ function renderLandHud(){
   $("landStun").disabled=!tgt||L.gunCd>0;$("landFire").disabled=!tgt||L.gunCd>0;$("landStun").hidden=$("landFire").hidden=!gun||!L.species.length;
   const wb=$("landWalk");if(wb){wb.hidden=!!L.aboard||!!(L.foot&&L.foot.stranded);wb.textContent=L.foot?"Back to the rover":"Disembark";wb.disabled=!!(L.foot?nearFoot()?.kind!=="rover":(L.stalled&&!L.stranded))}
   {const lb=$("landLift");if(lb){const why=liftBlock();lb.disabled=false;lb.style.opacity=why?".5":"";lb.title=why}const hb=$("landHome");if(hb)hb.textContent=L.foot&&L.foot.stranded?"Walk to lander":"Return to lander"}
-  if(L.foot){const F=L.foot,fn=nearFoot();$("landStats").insertAdjacentHTML("afterbegin",`<div class="stat">${esc(F.name)}'s oxygen ${bar(F.o2<F.max*.3?"low":"fuel",F.o2,F.max,`${Math.round(F.o2)} / ${F.max}`)}</div>`);
+  if(L.foot){const F=L.foot,fn=nearFoot();$("landStats").insertAdjacentHTML("afterbegin",`<div class="stat">${esc(F.name)}'s oxygen ${breathable(L.p)?`<span class="hint" style="margin:0">Breathable air, helmet off</span>`:bar(F.o2<F.max*.3?"low":"fuel",F.o2,F.max,`${Math.round(F.o2)} / ${F.max}`)}</div>`);
     $("landStun").hidden=$("landFire").hidden=true;act.disabled=!fn;act.textContent=!fn?(F.stranded?"Walk to the lander":"Walk to the site"):fn.kind==="lander"?"Board the lander":fn.kind==="rover"?"Climb back into the rover":fn.o.vael==="chamber"?"Enter the chamber":"Take the key";return}
   if(n&&!L.stalled){act.disabled=false;act.textContent=n.kind==="animal"?`Load ${L.species[n.o.si].name} (${L.species[n.o.si].size}t)`:n.kind==="dep"?`Mine ${n.o.m} (${n.o.t}t)`:n.o.vael?`Enter ${siteRef(n.o.vael)}`:"Explore ruins"}
   else{act.disabled=true;act.textContent=L.aboard?"Rover abandoned":L.stalled?"Out of power":"Nothing here"}
@@ -4021,7 +4069,9 @@ const TALL_TALES=[
  "Never board a Skarr ship flying a white flag. They're not surrendering. They're inviting you in.",
  "My great-grandmother was born on the old colony, back before there was a starbase. Said the first winter they ate the seed stock and the second winter they ate the ones who'd eaten the seed stock. Nobody believes her. I'm not sure I want to.",
  "Go down to the old colony sometime. The tavern there has a wall of patches from every ship that ever came home. Some of those ships, the patch is all that came back.",
- "Last week the old colony wasn't there. I'd have bet my ship on it. This week I've got forty years of memories of growing up in it, and a grandmother buried behind the chapel. The gods must've been busy again."];
+ "Last week the old colony wasn't there. I'd have bet my ship on it. This week I've got forty years of memories of growing up in it, and a grandmother buried behind the chapel. The gods must've been busy again.",
+ "Used to be you could pick a fight with anyone out here and fly home whistling. Then one week every ship in the sector came out of drydock meaner. Nobody remembers ordering the upgrades.",
+ "Back in my day ships never broke. Drives never quit, rovers never jammed, every scan came back clean the first time and every jump landed where you pointed it. Then one week the gods decided we were having it too easy. Now my navigator blames a stray decimal point twice a month."];
 function tallTale(){const seen=(G.talesHeard=G.talesHeard||[]);let pool=TALL_TALES.map((t,i)=>i).filter(i=>!seen.includes(i));
   if(!pool.length){G.talesHeard=[];pool=TALL_TALES.map((t,i)=>i)}const i=pick(Math.random,pool);G.talesHeard.push(i);return TALL_TALES[i]}
 function talkTo(id){
@@ -4865,7 +4915,7 @@ const DISTRESS_DAYS=6;
 function distressCalls(){const sh=ship();sh.calls=sh.calls||[];return sh.calls}
 function distressTick(days){
   if(!G.ship||!days)return;const sh=ship(),day=sh.day||0,calls=distressCalls();
-  if(calls.length>=2||Math.random()>=1-Math.pow(1-.05,days))return;
+  if(calls.length||Math.random()>=1-Math.pow(1-.025,days))return; // one call at a time, and about half as often as before
   if(inUnknown())return;
   const me=here(),list=G.systems.filter(s=>s!==me&&!s.deep&&!s.unknown&&!s.inNeb&&!s.starbase&&!s.alien&&Math.hypot(s.x-me.x,s.y-me.y)<=70&&!calls.some(c=>c.sys===s.id));
   if(!list.length)return;const s=pick(Math.random,list);
@@ -4904,7 +4954,7 @@ function maybeSkirmish(s){const a=territoryOf(s);if(!a||Math.random()>=.14)retur
 function alienLoadout(str,st,fighting){
   const r=Math.random;const lasers=r()<.12&&str<=2?0:Math.max(1,Math.round(str*.7+r()*1.6-.5));
   const torps=str>=3&&r()<.55?Math.max(1,Math.round(str/2+r()-.5)):0;
-  const shields=Math.max(0,Math.round(str/2+r()*2-1));
+  const shields=Math.max(0,Math.round(str*.6+r()*2-1));
   const pool=Object.keys(MIN_PRICE);const cargo={};const kinds=rint(r,0,3);
   for(let i=0;i<kinds;i++){const m=pick(r,pool);cargo[m]=(cargo[m]||0)+rint(r,2,8+str)}
   return {lasers,torps,torpN:torps?rint(r,2,6):0,shields,armed:fighting||st==="Hostile"||(st==="Wary"&&r()<.6)||r()<.15,shieldsUp:fighting||st==="Hostile"||(st==="Wary"&&r()<.5),
@@ -4914,6 +4964,7 @@ const ldOf=()=>{if(!enc.ld)enc.ld=alienLoadout(enc.str,stanceOf(enc.a.att),enc.f
 // a fight means weapons hot and shields up
 function goHot(){const ld=ldOf();const was=!ld.armed||!ld.shieldsUp;ld.armed=true;ld.shieldsUp=true;return was}
 function scanShip(){if(!needStation("sci",true))return;
+  if(stationFault("sci",.18)){encLine(`<span style="color:var(--amber)">${pick(Math.random,["The sensors can't get a lock on them.","The scan comes back scrambled.","Sensor ghosting. The readings are useless."])}</span>`);if(enc.fighting)enemyFires();renderEnc();return}
   const t=T();if(t&&enc.me&&tdist(t,enc.me)>scanRange()){encLine("Out of sensor range. Move closer.");renderEnc();return}
   if(t&&t.key==="freighter"){t.scanned=scanLevel();encLine("You scan the freighter. Its crew doesn't mind.");renderEnc();return}
   const a=t?G.aliens.find(x=>x.key===t.key)||enc.a:enc.a;
@@ -4968,7 +5019,7 @@ function wreckHtml(){const w=enc.wreck;if(!w||w.taken)return "";const n=Object.v
   return `<p class="hint" style="color:var(--text)">Wreckage drifts nearby. Your sensors read about ${n} tons of material${w.fuel?", some fuel":""}${w.relic&&enc.scanned>=60?", and that artifact signature":""}.</p>`}
 
 const QUIET_HP=480,QUIET_DARK=.7; // the Quiet are far tougher than anything in known space, and their dark hulls soak up lasers and torpedoes
-const shieldCut=dmg=>{const ld=ldOf();let d=ld.shieldsUp&&ld.shields?Math.max(1,dmg-ld.shields*3):dmg;const t=T();if(t&&t.key==="quiet")d=Math.max(1,Math.round(d*QUIET_DARK));return d};
+const shieldCut=dmg=>{const ld=ldOf();let d=ld.shieldsUp&&ld.shields?Math.max(1,dmg-ld.shields*5):dmg;const t=T();if(t&&t.key==="quiet")d=Math.max(1,Math.round(d*QUIET_DARK));return d};
 const scanBtn=()=>`<button id="eScan" ${enc.scanned>=scanLevel()?"disabled":""} title="They will notice">${enc.scanned?"Scanned":"Scan ship"}</button>`;
 
 // =====================================================================
@@ -5488,7 +5539,7 @@ function ionHtml(){const sh=ship();if(!G.vparts||!G.vparts.length)return "";
 window.addEventListener("keydown",e=>{if(gameMode!=="captain"||!G.ship||typing(e)||!$("modal").hidden||land||(port&&port.open))return;
   if(e.key==="1"){e.preventDefault();toggleShields();if(!enc)renderCaptain()}else if(e.key==="2"){e.preventDefault();toggleArm();if(!enc)renderCaptain()}else if(e.key==="3"){e.preventDefault();toggleIon();if(!enc)renderCaptain()}});
 
-const VERSION="0.89"; // bump with every change
+const VERSION="0.90"; // bump with every change
 
 // =====================================================================
 // ---------- AUTOMATIC BACKUPS THAT SURVIVE CLEARING THE BROWSER ----------
@@ -5596,7 +5647,7 @@ const ABOUT=[
 <p class="hint">Version ${typeof VERSION!=="undefined"?VERSION:""}</p>`}
 ];
 // CHANGELOG:BEGIN (generated from CHANGELOG.md)
-const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.89</h3>\n<ul>\n<li><b>The old colony.</b> Your home system now has the oldest human settlement in this part of space, with a few things you won't find anywhere else. Pay it a visit.</li>\n<li>New chatter and tall tales in the lounges, cantinas and taverns.</li>\n<li>Wording updates.</li>\n<li>Updated manual.</li>\n</ul>\n<h3>0.88</h3>\n<ul>\n<li><b>Play offline.</b> Download the game, with your current game inside it, from Saves, Backups &amp; Updates.</li>\n<li>Updated boarding.</li>\n<li>Updated manual.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.87</h3>\n<ul>\n<li><b>Every crew station matters.</b> An empty station is no longer covered. Without the right officer you can't scan, hail, fire or heal, and the ship can't jump without a captain, navigator and engineer.</li>\n<li>The Captain and First Officer can each take a second station, and you can reassign your crew from the Crew tab anywhere.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.86</h3>\n<ul>\n<li><b>Disembark anywhere.</b> Your captain can step out of the rover on any planet. The game tells you roughly how many seconds of air you have, and the suit refills in the rover and inside the lander's circle.</li>\n<li><b>Lift-off needs everyone home.</b> The rover has to be back inside the lander's circle before you can lift off.</li>\n<li>The Hall of Captains says more about how some captains died.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.85</h3>\n<ul>\n<li>Better odds on the cantina slot machines.</li>\n<li>New lore around the slot machines.</li>\n</ul>\n<h3>0.84</h3>\n<ul>\n<li><b>A slot machine</b> in alien cantinas, with a jackpot that grows with every pull. Some say there's a reason nobody plays it.</li>\n<li>New tall tales in the lounges.</li>\n</ul>\n<h3>0.83</h3>\n<ul>\n<li><b>The story continues.</b> Something new waits for those who make the Lattice sing.</li>\n<li>A new tall tale in the lounges.</li>\n<li>Fixed: the Codex could show keys aboard after they had been used.</li>\n</ul>\n<h3>0.82</h3>\n<ul>\n<li><b>Space suits reworked.</b> The free suit now holds much less air, and there are three better suits to buy at the shipyard. Suits you've already bought move up a level.</li>\n<li>Rover batteries rebalanced.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.81</h3>\n<ul>\n<li><b>Rover upgrades rebalanced.</b> Each level is a smaller step, so a fully upgraded rover is strong but no longer unstoppable.</li>\n<li>Your rover's upgrades now show on the Ship tab.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.80</h3>\n<ul>\n<li><b>Stranded on foot.</b> If your rover runs out of power or is wrecked far from the lander, your captain has to abandon it and walk back in a space suit before the air runs out.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.79.1</h3>\n<ul>\n<li>New tall tales in lounges, cantinas and taverns.</li>\n<li>Planets no longer list ruins once you've explored them all.</li>\n<li>Fixed the Codex count shown when loading a save.</li>\n</ul>\n<h3>0.79</h3>\n<ul>\n<li><b>Name your captain</b> when you start a new game.</li>\n<li><b>Hall of Captains</b> at your home starbase, honoring captains lost in service.</li>\n<li><b>Exploring on foot.</b> Some places the rover can't reach. Step out in a space suit and walk. Better suits are sold at the shipyard.</li>\n<li><b>New chapters in the main story.</b></li>\n<li>Ruins no longer appear on gas giants.</li>\n<li><b>Fixed:</b> pressing Enter on a planet's surface could land you again and speed up the rover.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.78</h3>\n<ul>\n<li><b>Stardate.</b> Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.</li>\n<li><b>Ship skins.</b> Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.</li>\n<li><b>A hidden tribute</b> to a beloved captain, waiting to be found.</li>\n<li><b>Every species has its own look.</b> The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.</li>\n<li>You can no longer colonize a planet that already has an alien colony.</li>\n<li>Friendly visitors in the starport corridor now look like their own species.</li>\n</ul>\n<h3>0.77.1</h3>\n<ul>\n<li>Updated title screen text.</li>\n</ul>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the species beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer work.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
+const CHANGELOG=[{"t": "Versions", "h": "<p class=\"hint\">Starforge is an open-world space exploration game inspired by <i>Starflight</i> (1986).</p>\n<p class=\"hint\">Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.</p>\n<p class=\"hint\">A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.</p>\n<h3>0.90</h3>\n<ul>\n<li><b>Combat rebalanced.</b> Alien ships hit harder and take more punishment, especially the stronger species.</li>\n<li><b>Things break.</b> The jump drive can fail mid-jump and rovers can break down. Keep your ship serviced and your engineer sharp.</li>\n<li><b>Crew skill matters more.</b> Inexperienced officers sometimes fumble scans, hails and jump plots.</li>\n<li>Breathable worlds no longer need a helmet.</li>\n<li>Fewer distress calls.</li>\n<li>Updated Krillian dialogue.</li>\n<li>New tall tales in the lounges, cantinas and taverns.</li>\n<li>Updated manual.</li>\n</ul>\n<h3>0.89</h3>\n<ul>\n<li><b>The old colony.</b> Your home system now has the oldest human settlement in this part of space, with a few things you won't find anywhere else. Pay it a visit.</li>\n<li>New chatter and tall tales in the lounges, cantinas and taverns.</li>\n<li>Wording updates.</li>\n<li>Updated manual.</li>\n</ul>\n<h3>0.88</h3>\n<ul>\n<li><b>Play offline.</b> Download the game, with your current game inside it, from Saves, Backups &amp; Updates.</li>\n<li>Updated boarding.</li>\n<li>Updated manual.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.87</h3>\n<ul>\n<li><b>Every crew station matters.</b> An empty station is no longer covered. Without the right officer you can't scan, hail, fire or heal, and the ship can't jump without a captain, navigator and engineer.</li>\n<li>The Captain and First Officer can each take a second station, and you can reassign your crew from the Crew tab anywhere.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.86</h3>\n<ul>\n<li><b>Disembark anywhere.</b> Your captain can step out of the rover on any planet. The game tells you roughly how many seconds of air you have, and the suit refills in the rover and inside the lander's circle.</li>\n<li><b>Lift-off needs everyone home.</b> The rover has to be back inside the lander's circle before you can lift off.</li>\n<li>The Hall of Captains says more about how some captains died.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.85</h3>\n<ul>\n<li>Better odds on the cantina slot machines.</li>\n<li>New lore around the slot machines.</li>\n</ul>\n<h3>0.84</h3>\n<ul>\n<li><b>A slot machine</b> in alien cantinas, with a jackpot that grows with every pull. Some say there's a reason nobody plays it.</li>\n<li>New tall tales in the lounges.</li>\n</ul>\n<h3>0.83</h3>\n<ul>\n<li><b>The story continues.</b> Something new waits for those who make the Lattice sing.</li>\n<li>A new tall tale in the lounges.</li>\n<li>Fixed: the Codex could show keys aboard after they had been used.</li>\n</ul>\n<h3>0.82</h3>\n<ul>\n<li><b>Space suits reworked.</b> The free suit now holds much less air, and there are three better suits to buy at the shipyard. Suits you've already bought move up a level.</li>\n<li>Rover batteries rebalanced.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.81</h3>\n<ul>\n<li><b>Rover upgrades rebalanced.</b> Each level is a smaller step, so a fully upgraded rover is strong but no longer unstoppable.</li>\n<li>Your rover's upgrades now show on the Ship tab.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.80</h3>\n<ul>\n<li><b>Stranded on foot.</b> If your rover runs out of power or is wrecked far from the lander, your captain has to abandon it and walk back in a space suit before the air runs out.</li>\n<li>A new tall tale in the lounges.</li>\n</ul>\n<h3>0.79.1</h3>\n<ul>\n<li>New tall tales in lounges, cantinas and taverns.</li>\n<li>Planets no longer list ruins once you've explored them all.</li>\n<li>Fixed the Codex count shown when loading a save.</li>\n</ul>\n<h3>0.79</h3>\n<ul>\n<li><b>Name your captain</b> when you start a new game.</li>\n<li><b>Hall of Captains</b> at your home starbase, honoring captains lost in service.</li>\n<li><b>Exploring on foot.</b> Some places the rover can't reach. Step out in a space suit and walk. Better suits are sold at the shipyard.</li>\n<li><b>New chapters in the main story.</b></li>\n<li>Ruins no longer appear on gas giants.</li>\n<li><b>Fixed:</b> pressing Enter on a planet's surface could land you again and speed up the rover.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.78</h3>\n<ul>\n<li><b>Stardate.</b> Today's date now shows as a Stardate just above the map coordinates, and everywhere the game used to show the day.</li>\n<li><b>Ship skins.</b> Ten hull designs and six engine glows in the shipyard. They change only how your ship looks, at any upgrade level.</li>\n<li><b>A hidden tribute</b> to a beloved captain, waiting to be found.</li>\n<li><b>Every species has its own look.</b> The Krillians, Skarr, Thexx, Selenn, Drovath, Quarn and Myrr have all been redrawn.</li>\n<li>You can no longer colonize a planet that already has an alien colony.</li>\n<li>Friendly visitors in the starport corridor now look like their own species.</li>\n</ul>\n<h3>0.77.1</h3>\n<ul>\n<li>Updated title screen text.</li>\n</ul>\n<h3>0.77</h3>\n<ul>\n<li><b>More realistic people.</b> Everyone in the game has been redrawn, from your crew to the species beyond the frontier.</li>\n<li><b>New ways to spend credits:</b>\n<ul>\n<li>Crew quarters and a med bay for your ship.</li>\n<li>Paint schemes, and your ship's name painted on the hull.</li>\n<li>Starbase improvements: a bigger shipyard, a refinery, or a bigger lounge.</li>\n<li>Funding your colonies so they grow faster.</li>\n<li>Star charts, tips and other information from bartenders and colony officials.</li>\n<li>Insurance, 25 credits a week.</li>\n</ul></li>\n<li><b>One set of action keys.</b> Z, X and C (or , . /) now do the main jobs everywhere: on the tactical screen, on planets, and in the spaceport.</li>\n<li>Balance improvements.</li>\n</ul>\n<h3>0.76.5</h3>\n<ul>\n<li>Saves, backups and updates share one title screen link.</li>\n</ul>\n<h3>0.76.4</h3>\n<ul>\n<li>Saves, backups and updates can now be reached from the title screen, as well as the Log tab.</li>\n</ul>\n<h3>0.76.3</h3>\n<ul>\n<li>Contact address added to the About screen.</li>\n</ul>\n<h3>0.76.2</h3>\n<ul>\n<li>Changelog added to the title screen.</li>\n</ul>\n<h3>0.76.1</h3>\n<ul>\n<li>Updated manual.</li>\n</ul>\n<h3>0.76</h3>\n<ul>\n<li><b>Title screen.</b> Choose Captain or Builder when the game opens. A Title link under the Starforge name brings you back to it.</li>\n<li><b>Colonies you can visit.</b> Alien species have colonies in their own space, each with a trade post, a colony hall and a cantina. Friendly and Neutral species let you land for free, Wary ones charge a landing fee, and Hostile ones turn you away.</li>\n<li><b>Your own colonies</b> can be visited too: buy fuel, sell metal, check on their progress, and have a drink with the colonists.</li>\n<li><b>Conversations.</b> After hailing a ship you can ask about who they are, their homeworld, trade, news, their neighbors and local dangers.</li>\n<li><b>Wanted goods.</b> Each species pays extra for certain items. Find out what they want and it's noted in your Known species list.</li>\n<li><b>Surrender.</b> Beaten ships may give up. Board them, let them go, or finish them. A captured ship can be towed home and sold at your starbase.</li>\n<li><b>Cantina talk.</b> Travelers share stories from beyond the frontier, along with plenty of gossip that's no use to anyone.</li>\n<li>New faces in the cantinas. Some of them offer their services.</li>\n<li>Manual updated with the new features.</li>\n</ul>\n<h3>0.75</h3>\n<ul>\n<li>The game now checks for updates on its own GitHub page.</li>\n<li>Downloading an update carries your saved game into the new file.</li>\n</ul>\n<h3>0.73 \u2013 0.74</h3>\n<ul>\n<li><b>About</b> page: the game's inspiration, how it was made, and a short synopsis.</li>\n<li><b>Captain's Manual</b>, in the game and as a separate document: the known species, background lore, ship and crew, the spaceport, exploring, encounters, controls and saving.</li>\n<li><b>Automatic backup</b> of your save, so clearing your browser's data doesn't erase your game. The game can keep a backup file up to date for you.</li>\n<li><b>Online updater</b> (first version).</li>\n<li><b>Fixed:</b> planet maps where the rover couldn't reach some ruins or deposits.</li>\n</ul>\n<h3>0.72</h3>\n<ul>\n<li>Version number shown under the Starforge name.</li>\n<li>Weapons improvements.</li>\n<li>Storyline improvements.</li>\n</ul>"}, {"t": "Early development", "h": "<p class=\"hint\">Before version numbers appeared in the game.</p>\n<h3>The galaxy</h3>\n<ul>\n<li>Galaxy builder for generating and editing star systems, with mostly random and custom generation.</li>\n<li>A galaxy that grows as you reach its edge.</li>\n<li>Star and planet names no longer overlap on the map.</li>\n<li>Better space visuals.</li>\n</ul>\n<h3>Ship and crew</h3>\n<ul>\n<li>Your own ship, with fuel, hull, shields, weapons and upgrades.</li>\n<li>Shield and weapon buttons, plus hotkeys: 1 for shields, 2 for weapons.</li>\n<li>A crew with seven skills, station assignments and hit points.</li>\n<li>The doctor heals injured crew. Crew can die, and if the captain falls, command passes down the chain.</li>\n<li>Crew sometimes pick up skill points chatting in the lounge.</li>\n</ul>\n<h3>Exploring</h3>\n<ul>\n<li>System and planet scans.</li>\n<li>Planet landings with a rover: mining, exploring ruins and capturing wildlife.</li>\n<li>Every animal species looks unique.</li>\n<li>Recommend worlds for colonies, with a warning before you recommend a poor one.</li>\n<li>Build fuel depots, outposts and starbases (but not on a planet that already has one).</li>\n</ul>\n<h3>Aliens and encounters</h3>\n<ul>\n<li>Alien species with their own territories, attitudes and rivalries. Species can fight each other.</li>\n<li>Friendly starbases trade with you, and neutral ones might.</li>\n<li>Tactical encounter screen: maneuver, pick a target among several ships, and fire lasers (Z or ,) and torpedoes (X or .).</li>\n<li>Scan alien ships to see their weapons, shields, cargo and fuel. They notice the scan, and it changes how they treat you.</li>\n<li>Arming weapons or raising shields also changes how other ships react.</li>\n<li>Shields wear down when hit and recharge after each encounter.</li>\n<li>Scavenge wreckage after a fight.</li>\n<li>Distress calls from ships under attack stay open until you next dock.</li>\n</ul>\n<h3>The spaceport</h3>\n<ul>\n<li>A walkable spaceport with a shipyard, trade depot, personnel office, lounge and observation deck.</li>\n<li>Lore and rumors to collect from ruins, spacers and alien envoys.</li>\n</ul>"}];
 // CHANGELOG:END
 const MANUAL=[
  {t:"Welcome",h:`<blockquote style="margin:0 0 14px;padding:10px 14px;border-left:3px solid var(--amber);background:rgba(255,255,255,.04);font-style:italic">“Being a captain is a dangerous job in an unforgiving universe. Being a careless one just makes it somebody else’s problem. Usually the first officer’s.”</blockquote>
@@ -5676,7 +5727,7 @@ const MANUAL=[
 <tr><th>Place</th><th>What it's for</th></tr>
 <tr><td><b>Trade post</b></td><td>Buy fuel and local minerals. Sell your cargo, relics and specimens. Goods the colony wants are marked <i>Wanted</i> and pay much more than a starbase. Some species sell rare ship parts here.</td></tr>
 <tr><td><b>Colony hall</b></td><td>Talk to an official. You'll learn where their homeworld is, how they feel about you, and what they pay extra for. Officials will also sell star charts, tips and news of other species.</td></tr>
-<tr><td><b>Cantina</b></td><td>Drinks, dice and gossip, like the Lounge, but with local regulars. Strangers drift through cantinas too, and some of them offer work. Alien cantinas also keep an old slot machine in the corner. Keep an eye on your credits.</td></tr>
+<tr><td><b>Cantina</b></td><td>Drinks, dice and gossip, like the Lounge, but with local regulars. Strangers drift through cantinas too, and some of them offer their services. Alien cantinas also keep an old slot machine in the corner. Keep an eye on your credits.</td></tr>
 </table>
 <h3>Your own colonies</h3>
 <p>Worlds you recommend become colonies of their own. Visit them to buy fuel from their refinery, sell them metal to build with, check on their progress at the colony office (where you can also fund them, so they grow faster), and share a drink in the mess hall or tavern.</p>
@@ -5697,6 +5748,8 @@ const MANUAL=[
 <li><b>Colonies:</b> recommend worlds with good habitability to the Colony Office from orbit. Worlds that already have an alien colony are off limits. Good picks pay a bonus. Poor ones get you fined.</li>
 <li><b>Fuel depots:</b> build one in orbit around any scanned planet to make fuel over time. Depots in unfriendly space may come under attack.</li>
 <li><b>Radio:</b> if you're stranded, call for a fuel delivery or a tow. It's expensive, but it beats drifting.</li>
+<li><b>Breakdowns:</b> long jumps, a damaged hull and time since your last starbase visit all raise the odds of the jump drive failing mid-jump. Your engineer can repair it in a few days, or you can radio for a tow. Docking at a starbase services the ship. Rovers can break down too.</li>
+<li><b>Crew mistakes:</b> less experienced officers fumble now and then. A science officer may need to rerun a scan or may get unreadable mineral data, a comms officer may lose a hail or garble an answer, and a navigator may misjump, dropping you somewhere near where you started instead of where you were going. The better the officer, the rarer it gets. A fully trained officer never slips.</li>
 <li><b>Stardate:</b> today's date is shown just above the map coordinates.</li>
 <li><b>Rumors &amp; Leads</b> (in the Log tab) collects tips from travelers. Place names and coordinates are clickable and take you to the map.</li>
 </ul>`},
@@ -6022,8 +6075,8 @@ const kJobCost=k=>Math.round(KJOBS[k].base*(1-kTrust()*.07)*(1-eff("cha")/500)/1
 const kVanish=()=>Math.max(.05,.22-kTrust()*.035);
 function krillJobHtml(){const L=port.lounge;if(!L||!L.krJob)return "";const sh=ship();
   const raidT=(G.aliens||[]).filter(a=>a.met&&stanceOf(a.att)!=="Friendly");
-  return `<div class="member" style="border-color:${KRILL_DEF.color}"><h2 style="color:${KRILL_DEF.color}">${esc(L.krJob.name)} has work for you</h2>
-    <p class="hint">“Krillians do what others won't. For a fee. Always for a fee.” Paid up front. ${kTrust()>=2?"They seem to trust you a little.":"They don't know you yet, so it costs more."}</p>
+  return `<div class="member" style="border-color:${KRILL_DEF.color}"><h2 style="color:${KRILL_DEF.color}">${esc(L.krJob.name)} is offering their services</h2>
+    <p class="hint">“Credits can't buy happiness. But they can rent it, by the hour, at very fair rates. Also, you might be interested in what I have to offer. Mostly legal. Look below.” Paid up front. ${kTrust()>=2?"They seem to trust you a little.":"They don't know you yet, so it costs more."}</p>
     <div class="shop">${Object.entries(KJOBS).map(([k,j])=>`<div class="item"><div>${j.name}<div class="d">${j.d}</div>${k==="raid"?`<select id="kRaidT" aria-label="Species to raid" style="margin-top:4px">${raidT.map(a=>`<option value="${a.key}">${esc(def(a.key).name)}</option>`).join("")}</select>`:""}</div>
       <button class="sm" data-kjob="${k}" ${L.krJob.done||sh.credits<kJobCost(k)||(k==="raid"&&!raidT.length)?"disabled":""}>${kJobCost(k)} cr</button></div>`).join("")}</div>
     ${L.krJob.done?'<p class="hint">They\'ve taken one job tonight. That\'s plenty, they say, for one night of honest crime.</p>':""}</div>`}
@@ -6076,7 +6129,8 @@ const KRILL_ANS={home:"Home is wherever the loot is. Currently: your cargo hold.
   neighbors:"Everyone's our neighbor! Everyone owes us money.",danger:"The most dangerous thing out here? A Krillian with a plan. Luckily we never have one."};
 function askRow(){if(!enc||!enc.hailed||enc.fighting||enc.special||enc.trading||enc.talkOver||enc.a.key==="quiet")return "";enc.asked=enc.asked||{};
   return `<div class="row" style="gap:4px;flex-wrap:wrap"><span class="hint" style="align-self:center">Ask:</span>${ASK.map(q=>`<button class="sm" data-ask="${q.k}" ${enc.asked[q.k]?"disabled":""}>${q.t}</button>`).join("")}</div>`}
-function ask(k){const a=enc.a,d=def(a.key),st=stanceOf(a.att),kr=a.key==="krillian";enc.asked=enc.asked||{};if(enc.asked[k])return;enc.asked[k]=true;gainXP("com",3);gainXP("cha",2);
+function ask(k){const a=enc.a,d=def(a.key),st=stanceOf(a.att),kr=a.key==="krillian";enc.asked=enc.asked||{};if(enc.asked[k])return;
+  if(stationFault("com",.15)){encLine(`<span style="color:var(--amber)">${pick(Math.random,["The translator garbles their answer. Ask again.","Their reply breaks up into static.","The translation comes through as nonsense. Something about soup?"])}</span>`);renderEnc();return}enc.asked[k]=true;gainXP("com",3);gainXP("cha",2);
   const say=t=>encLine(`<span style="color:var(--cyan)">You: ${esc(ASK.find(q=>q.k===k).t)}</span><br>“${t}”`);
   if(st==="Wary"&&!kr&&Math.random()<.3-eff("cha")/500){changeAtt(a,-3);enc.refused=(enc.refused||0)+1;say(pick(Math.random,["Enough questions.","Why do you want to know?","That is not your concern, outsider."]));
     if(enc.refused>=2){enc.talkOver=true;encLine("They close the channel to further questions.")}renderEnc();return}
@@ -6362,16 +6416,27 @@ const evaPlanet=p=>p&&(p.vaelSite==="chamber"||p.vaelSite==="key0");
 function walkerPick(){const sh=ship(),cap=sh.crew.find(c=>c.captain);
   const repair=land&&land.p&&land.p.vaelSite==="chamber"&&G.lore&&loreNext()>=0&&LORE[loreNext()].src==="chamber";
   return (repair&&crewIn("eng"))||cap||sh.crew[0]}
+const breathable=p=>/breathable/i.test(p.atmo||""); // habitable worlds: no need for suit air
 function footDrain(p){const hot=p.type==="Molten"||p.type==="Frozen",bad=/toxic|none|thin|corrosive/i.test(p.atmo||"");return 1+(bad?.4:0)+(hot?(suitLvl()>=3?.1:.5):0)}
 function askDisembark(){const L=land;if(!L||L.foot||L.aboard)return;if(L.stalled&&!L.stranded)return;
   const sh=ship(),c=L.stranded?(sh.crew.find(x=>x.captain)||walkerPick()):walkerPick();if(!c)return;const S=SUIT[suitLvl()],d=footDrain(L.p),walk=Math.round(S.o2/d),still=Math.round(S.o2/(d*.6));
   const who=c.captain?`Captain ${c.name}`:c.name,suit=S.d.split(":")[0].toLowerCase();
+  if(breathable(L.p)){confirmBox(`${who} steps out onto ${L.p.name}. The air here is breathable, so the suit's tanks aren't needed.${L.stranded?` The lander is about ${Math.round(Math.hypot(L.rover.x-L.site[0],L.rover.y-L.site[1]))} cells away.`:""}`,()=>disembark());$("mLoad").textContent="Disembark";$("mTitle").textContent="Disembark";return}
   confirmBox(`${who} steps out in the ${suit}. On ${L.p.name} that's about ${walk} seconds of air while walking, or ${still} standing still.${L.stranded?` The lander is about ${Math.round(Math.hypot(L.rover.x-L.site[0],L.rover.y-L.site[1]))} cells away, and the dead rover has no air to give. Air refills only inside the lander's circle.`:" Air refills in the rover and inside the lander's circle."}`,()=>disembark());$("mLoad").textContent="Disembark";$("mTitle").textContent="Disembark"}
 function disembark(){const L=land;if(!L||L.foot||L.aboard)return;if(L.stalled&&!L.stranded)return;const sh=ship(),c=L.stranded?(sh.crew.find(x=>x.captain)||walkerPick()):walkerPick();if(!c)return;const o2=SUIT[suitLvl()].o2;
   if(L.stranded){const who=c.captain?`Captain ${c.name}`:c.name;L.foot={x:L.rover.x+1.2,y:L.rover.y+.4,a:0,o2,max:o2,who:c.id,name:c.name,moving:false,stranded:true};
     landMsg(`${who} abandons the rover and sets out for the lander.`);logMsg(`On ${L.p.name}: the rover died, and ${who} set out on foot for the lander.`);renderLandHud();changed();return}
   L.foot={x:L.rover.x+1.2,y:L.rover.y+.4,a:0,o2,max:o2,who:c.id,name:c.name,moving:false};landMsg(suitLvl()?`${c.name} climbs out of the rover in a space suit. Watch the oxygen.`:`${c.name} climbs out in the basic suit. It doesn't hold much air. A better suit from the shipyard would get them farther.`);renderLandHud()}
 // a dead rover far from the lander: the crew walks home in a space suit before the air runs out
+// harsher worlds are harder on the rover: heat, cold, corrosive air and loose ground
+function roverHazard(p){const t={Temperate:.5,Ocean:.6,Desert:1,Rock:1,"Asteroid belt":1.2,Frozen:1.6,Molten:2.2}[p.type]||1;const a=/corrosive/i.test(p.atmo||"")?1.5:/toxic/i.test(p.atmo||"")?1.25:1;return t*a}
+// rover trouble: at most one fault per landing; more likely with a weak engineer
+function roverFaultTick(L,v){const rv=L.rover;if(L.faultDone||L.stalled)return;L.faultMeter=(L.faultMeter||0)+v;if(L.faultMeter<8)return;L.faultMeter=0;
+  if(Math.random()>.012*roverHazard(L.p)*(1.5-Math.min(100,eff("eng"))/100))return;L.faultDone=true;const k=pick(Math.random,["leak","stuck","cell"]);
+  if(k==="leak"){rv.leak=true;landMsg("Warning: a power coupling has cracked. The rover is draining power much faster now. Better head back.")}
+  else if(k==="stuck"){rv.stuck=true;L.stuckFix=0;landMsg("The drive train is jammed. The rover crawls at half speed. Stop for a moment and the crew can work it loose.")}
+  else{const lost=Math.round(rv.energy*.3);rv.energy=Math.max(1,rv.energy-lost);landMsg(`A battery cell just died. You've lost ${lost} power.`)}
+  renderLandHud()}
 function strandRover(why){const L=land;if(!L)return;const rv=L.rover;
   if(Math.hypot(rv.x-L.site[0],rv.y-L.site[1])<3.2){landMsg(why+" Luckily it's beside the lander, where it can recharge.");return}
   const sh=ship(),c=sh.crew.find(x=>x.captain)||walkerPick();if(!c){L.aboard=true;return}const who=c.captain?`Captain ${c.name}`:c.name;
@@ -6389,7 +6454,7 @@ function tickFoot(dt){const L=land,F=L.foot,c=walker();if(!c){if(F.stranded)boar
   F.moving=false;if(dx||dy){const len=Math.hypot(dx,dy);dx/=len;dy/=len;const sp=footOk(F.x+dx*.5,F.y+dy*.5);
     if(sp>0){const v=2.8*sp*dt;F.x+=dx*v;F.y+=dy*v;F.a=Math.atan2(dy,dx);F.moving=true}
     else if(!L.bumpT||L.t-L.bumpT>1.2){L.bumpT=L.t;landMsg("Even on foot, there's no way across there.");F.target=null;F.path=null}}
-  const drain=footDrain(L.p)*(F.moving?1:.6);F.o2=Math.max(0,F.o2-drain*dt);
+  const drain=breathable(L.p)?0:footDrain(L.p)*(F.moving?1:.6);F.o2=breathable(L.p)?F.max:Math.max(0,F.o2-drain*dt);
   if(F.o2<=0){F.hurtT=(F.hurtT||0)+dt;if(F.hurtT>=1){F.hurtT=0;const short=Math.max(1,Math.round(Math.hypot(F.x-L.site[0],F.y-L.site[1])-3.2)),note=hurtCrew(c,4,F.stranded?`on ${L.p.name} when their suit ran out of air, ${short} cell${short===1?"":"s"} short of the lander`:`on ${L.p.name} when their suit ran out of air`);if(!ship().crew.includes(c)){if(F.stranded){logMsg(`${c.captain?"Captain ":""}${c.name} died on ${L.p.name}, out of air short of the lander.`);boardLander(`${c.captain?"Captain ":""}${c.name}'s air ran out short of the lander. The lander's autopilot brings them home, and the rover too.`)}else reEmbark("The suit's tanks ran dry. The crew carries the body back to the rover.");changed();return}if(note&&Math.random()<.3)landMsg(`${c.name} is out of air and getting hurt! Get ${F.stranded?"to the lander":"back to the rover"}.`)}}
   if(F.stranded){if(Math.hypot(F.x-L.site[0],F.y-L.site[1])<2.4){boardLander(`${c.name} makes it to the lander with ${Math.round(F.o2)} air to spare. Lift off to recover the empty rover. Its cargo stays behind.`);return}}
   if(Math.hypot(F.x-L.site[0],F.y-L.site[1])<3.2&&F.o2<F.max)F.o2=Math.min(F.max,F.o2+dt*25);
