@@ -6,6 +6,12 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.91
+- Rovers break down less often, and a good engineer helps more.
+- Better play on phones. Encounter buttons stay in view, and messages on planet surfaces no longer hide behind the controls.
+- Manual tidied up.
+- A new tall tale in the lounges.
+
 ## 0.90
 - **Combat rebalanced.** Alien ships hit harder and take more punishment, especially the stronger species.
 - **Things break.** The jump drive can fail mid-jump and rovers can break down. Keep your ship serviced and your engineer sharp.
