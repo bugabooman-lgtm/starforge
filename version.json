@@ -1,5 +1,5 @@
 {
- "version": "0.91",
- "notes": "Rovers break down less often, better play on phones, a tidier manual and a new tall tale.",
+ "version": "0.91.1",
+ "notes": "Small fixes: selling includes rover storage, clearer misjump reports, and a new tall tale.",
  "file": "Starforge.html"
 }

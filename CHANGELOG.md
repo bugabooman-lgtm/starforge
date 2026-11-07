@@ -6,6 +6,11 @@ A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or Ab
 
 ---
 
+## 0.91.1
+- Selling all minerals now includes rover storage in one go.
+- Misjump reports wait until the ship has stopped.
+- A new tall tale.
+
 ## 0.91
 - Rovers break down less often, and a good engineer helps more.
 - Better play on phones. Encounter buttons stay in view, and messages on planet surfaces no longer hide behind the controls.
