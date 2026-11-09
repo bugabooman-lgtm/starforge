@@ -1,5 +1,5 @@
 {
- "version": "0.91.1",
- "notes": "Small fixes: selling includes rover storage, clearer misjump reports, and a new tall tale.",
+ "version": "0.92",
+ "notes": "Borders matter: no colonies in alien territory and resented depots. Dismantle depots, clearer drive failure reports, new tall tales.",
  "file": "Starforge.html"
 }

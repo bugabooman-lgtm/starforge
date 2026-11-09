@@ -2,9 +2,16 @@
 
 Starforge is an open-world space exploration game inspired by *Starflight* (1986).
 Version numbers started appearing in the game at 0.72. Changes before that are grouped by milestone.
-A version ending in .1, .2 and so on (like 0.76.1) changes only the manual or About screen, not the game itself.
+A version ending in .1, .2 and so on (like 0.91.1) is a small update: fixes, tweaks and manual changes, without new features.
 
 ---
+
+## 0.92
+- Other species now take their borders seriously. The Colony Office won't settle worlds in alien territory, and a depot built there won't make you any friends.
+- Fuel depots can be dismantled.
+- Drive failures are reported more clearly.
+- New tall tales in the lounges, cantinas and taverns.
+- Updated manual.
 
 ## 0.91.1
 - Selling all minerals now includes rover storage in one go.
