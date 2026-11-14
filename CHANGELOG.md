@@ -6,6 +6,12 @@ A version ending in .1, .2 and so on (like 0.91.1) is a small update: fixes, twe
 
 ---
 
+## 0.93
+- **Bigger ships.** Proven captains can commission one of two new, larger hull classes, with room for more crew, cargo and fuel. Your old ship gets a place of honor.
+- **A new story arc.** It picks up where the Vael left off. Listen in the lounges.
+- New tall tales in the lounges, cantinas and taverns.
+- Updated manual.
+
 ## 0.92
 - Other species now take their borders seriously. The Colony Office won't settle worlds in alien territory, and a depot built there won't make you any friends.
 - Fuel depots can be dismantled.
