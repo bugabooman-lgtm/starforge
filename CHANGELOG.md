@@ -6,6 +6,11 @@ A version ending in .1, .2 and so on (like 0.91.1) is a small update: fixes, twe
 
 ---
 
+## 0.94
+- **Backup reminder.** If your browser paused the automatic backup when it was closed, the game reminds you to switch it back on.
+- A new tall tale.
+- Updated manual.
+
 ## 0.93
 - **Bigger ships.** Proven captains can commission one of two new, larger hull classes, with room for more crew, cargo and fuel. Your old ship gets a place of honor.
 - **A new story arc.** It picks up where the Vael left off. Listen in the lounges.
